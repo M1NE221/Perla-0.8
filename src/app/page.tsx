@@ -23,6 +23,14 @@ import TypingResponse from '@/components/TypingResponse';
 import { initializeAI, processSaleInput, generateInsights, SaleData, ActionResult } from '@/services/aiService';
 import { motion, AnimatePresence } from 'framer-motion';
 import AudioRecorder from '@/components/AudioRecorder';
+// Import Firebase service functions
+import { 
+  initializeFirebase, 
+  saveSalesToFirestore, 
+  loadSalesFromFirestore,
+  savePreferencesToFirestore,
+  loadPreferencesFromFirestore
+} from '@/services/firebaseService';
 
 // Define available fields for customization
 const AVAILABLE_FIELDS = [
@@ -76,42 +84,125 @@ export default function Home() {
   
   // Load saved data from localStorage on component mount
   useEffect(() => {
-    const savedSales = localStorage.getItem('sales');
-    if (savedSales) {
+    // Initialize Firebase and authenticate anonymously
+    const setupFirebase = async () => {
       try {
-        setSales(JSON.parse(savedSales));
-      } catch (e) {
-        console.error('Error loading saved sales', e);
+        const user = await initializeFirebase();
+        console.log('Firebase initialized with user ID:', user?.uid);
+        
+        // Load data from Firestore
+        const cloudSales = await loadSalesFromFirestore();
+        if (cloudSales) {
+          console.log('Loaded sales data from Firestore');
+          setSales(cloudSales);
+        } else {
+          // Fall back to localStorage if no cloud data
+          const savedSales = localStorage.getItem('sales');
+          if (savedSales) {
+            try {
+              const parsedSales = JSON.parse(savedSales);
+              setSales(parsedSales);
+              // Upload local data to Firestore for future use
+              saveSalesToFirestore(parsedSales).catch(err => 
+                console.error('Error syncing local sales to Firestore:', err)
+              );
+            } catch (e) {
+              console.error('Error loading saved sales', e);
+            }
+          }
+        }
+        
+        // Load preferences from Firestore
+        const cloudPreferences = await loadPreferencesFromFirestore();
+        if (cloudPreferences) {
+          if (cloudPreferences.activeFields) {
+            setActiveFields(cloudPreferences.activeFields);
+          }
+          
+          if (cloudPreferences.columnOrder) {
+            setColumnOrder(cloudPreferences.columnOrder);
+          } else if (cloudPreferences.activeFields) {
+            // Initialize column order based on active fields if no specific order
+            setColumnOrder(cloudPreferences.activeFields);
+          }
+        } else {
+          // Fall back to localStorage if no cloud preferences
+          // Check for saved activeFields configuration
+          const savedActiveFields = localStorage.getItem('activeFields');
+          if (savedActiveFields) {
+            try {
+              const fields = JSON.parse(savedActiveFields);
+              setActiveFields(fields);
+              setColumnOrder(fields); // Initialize column order based on active fields
+              
+              // Upload local preferences to Firestore
+              savePreferencesToFirestore({ activeFields: fields }).catch(err =>
+                console.error('Error syncing local active fields to Firestore:', err)
+              );
+            } catch (e) {
+              console.error('Error loading active fields', e);
+            }
+          } else {
+            // Default column order
+            setColumnOrder(['product', 'amount', 'totalPrice', 'date']);
+          }
+          
+          // Check for saved column order
+          const savedColumnOrder = localStorage.getItem('columnOrder');
+          if (savedColumnOrder) {
+            try {
+              const order = JSON.parse(savedColumnOrder);
+              setColumnOrder(order);
+              
+              // Upload local preferences to Firestore
+              savePreferencesToFirestore({ columnOrder: order }).catch(err =>
+                console.error('Error syncing local column order to Firestore:', err)
+              );
+            } catch (e) {
+              console.error('Error loading column order', e);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing Firebase:', error);
+        
+        // Fall back to localStorage if Firebase fails
+        const savedSales = localStorage.getItem('sales');
+        if (savedSales) {
+          try {
+            setSales(JSON.parse(savedSales));
+          } catch (e) {
+            console.error('Error loading saved sales', e);
+          }
+        }
+        
+        // Check for saved activeFields configuration
+        const savedActiveFields = localStorage.getItem('activeFields');
+        if (savedActiveFields) {
+          try {
+            const fields = JSON.parse(savedActiveFields);
+            setActiveFields(fields);
+            setColumnOrder(fields); // Initialize column order based on active fields
+          } catch (e) {
+            console.error('Error loading active fields', e);
+          }
+        } else {
+          // Default column order
+          setColumnOrder(['product', 'amount', 'totalPrice', 'date']);
+        }
+        
+        // Check for saved column order
+        const savedColumnOrder = localStorage.getItem('columnOrder');
+        if (savedColumnOrder) {
+          try {
+            setColumnOrder(JSON.parse(savedColumnOrder));
+          } catch (e) {
+            console.error('Error loading column order', e);
+          }
+        }
       }
-    }
-    
-    // Check for saved activeFields configuration
-    const savedActiveFields = localStorage.getItem('activeFields');
-    if (savedActiveFields) {
-      try {
-        const fields = JSON.parse(savedActiveFields);
-        setActiveFields(fields);
-        setColumnOrder(fields); // Initialize column order based on active fields
-      } catch (e) {
-        console.error('Error loading active fields', e);
-      }
-    } else {
-      // Default column order
-      setColumnOrder(['product', 'amount', 'totalPrice', 'date']);
-    }
-    
-    // Check for saved column order
-    const savedColumnOrder = localStorage.getItem('columnOrder');
-    if (savedColumnOrder) {
-      try {
-        setColumnOrder(JSON.parse(savedColumnOrder));
-      } catch (e) {
-        console.error('Error loading column order', e);
-      }
-    }
-    
-    // Test the backend connection and update initialization status
-    (async () => {
+      
+      // Test the backend connection and update initialization status
       try {
         const isConnected = await initializeAI();
         if (!isConnected) {
@@ -120,15 +211,23 @@ export default function Home() {
       } catch (error) {
         console.error("Error checking backend connection:", error);
       }
-    })();
+    };
+    
+    setupFirebase();
   }, []);
 
-  // Save sales to localStorage whenever they change
+  // Save sales whenever they change
   useEffect(() => {
+    // Save to localStorage as backup
     localStorage.setItem('sales', JSON.stringify(sales));
     
-    // Generate insights for the sales data
+    // Save to Firestore
     if (sales.length > 0) {
+      saveSalesToFirestore(sales).catch(err => 
+        console.error('Error saving sales to Firestore:', err)
+      );
+      
+      // Generate insights for the sales data
       generateInsights(sales).then(insight => {
         if (insight) setInsight(insight);
       });
@@ -137,12 +236,24 @@ export default function Home() {
 
   // Save active fields configuration
   useEffect(() => {
+    // Save to localStorage as backup
     localStorage.setItem('activeFields', JSON.stringify(activeFields));
+    
+    // Save to Firestore
+    savePreferencesToFirestore({ activeFields }).catch(err => 
+      console.error('Error saving active fields to Firestore:', err)
+    );
   }, [activeFields]);
   
   // Save column order
   useEffect(() => {
+    // Save to localStorage as backup
     localStorage.setItem('columnOrder', JSON.stringify(columnOrder));
+    
+    // Save to Firestore
+    savePreferencesToFirestore({ columnOrder }).catch(err => 
+      console.error('Error saving column order to Firestore:', err)
+    );
   }, [columnOrder]);
 
   // Toggle selection mode
