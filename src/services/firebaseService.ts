@@ -63,7 +63,8 @@ export const initializeFirebase = (): Promise<User | null> => {
         try {
           const userDocRef = doc(db, "usuarios", user.uid);
           await setDoc(userDocRef, {
-            lastLogin: serverTimestamp()
+            lastLogin: serverTimestamp(),
+            sales: [] // Initialize with empty array if it doesn't exist
           }, { merge: true });
           console.log("Updated user document in Firestore");
         } catch (error) {
@@ -84,7 +85,8 @@ export const initializeFirebase = (): Promise<User | null> => {
             const userDocRef = doc(db, "usuarios", currentUser.uid);
             await setDoc(userDocRef, {
               created: serverTimestamp(),
-              lastLogin: serverTimestamp()
+              lastLogin: serverTimestamp(),
+              sales: [] // Initialize with empty array
             }, { merge: true });
             console.log("Created new user document in Firestore");
           } catch (firestoreError) {
@@ -115,11 +117,23 @@ export const saveSalesToFirestore = async (sales: any[]): Promise<void> => {
   }
   
   try {
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
+    // Normalize sales data to include all fields, even if empty
+    const normalizedSales = sales.map(sale => ({
+      id: sale.id || `sale-${Date.now()}`,
+      product: sale.product || null,
+      amount: sale.amount || null,
+      price: sale.price || null,
+      totalPrice: sale.totalPrice || null,
+      paymentMethod: sale.paymentMethod || null,
+      client: sale.client || null,
+      date: sale.date || null
+    }));
     
-    // Use setDoc with merge option instead of updateDoc to create the document if it doesn't exist
+    console.log("Normalized sales before saving:", normalizedSales);
+    
+    const userDocRef = doc(db, "usuarios", currentUser.uid);
     await setDoc(userDocRef, {
-      sales: sales,
+      sales: normalizedSales,
       lastUpdated: serverTimestamp()
     }, { merge: true });
     

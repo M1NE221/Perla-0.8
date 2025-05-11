@@ -223,6 +223,7 @@ export default function Home() {
     
     // Save to Firestore
     if (sales.length > 0) {
+      console.log("Sales array to be saved:", sales);
       saveSalesToFirestore(sales).catch(err => 
         console.error('Error saving sales to Firestore:', err)
       );
