@@ -18,6 +18,7 @@ Perla es una aplicación de escritorio minimalista con IA que ayuda a pequeños 
 - Node.js (v16 o superior)
 - npm (v7 o superior)
 - Claves de API de OpenAI (para procesamiento de lenguaje y transcripción)
+- Proyecto de Firebase (para almacenamiento de datos en la nube)
 
 ## Configuración del proyecto
 
@@ -33,11 +34,27 @@ npm install
 ```
 
 3. Configura las variables de entorno
-   - Crea un archivo `.env` en la raíz del proyecto
-   - Añade tu clave de API de OpenAI
+   - Crea un archivo `.env.local` en la raíz del proyecto
+   - Añade tu clave de API de OpenAI y configuración de Firebase:
 ```
+# OpenAI API
 OPENAI_API_KEY=tu_clave_api_aquí
+
+# Firebase Configuration
+NEXT_PUBLIC_FIREBASE_API_KEY=tu_api_key_de_firebase
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=tu_proyecto.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=tu_proyecto_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=tu_proyecto_id.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=tu_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=tu_app_id
 ```
+
+4. Configuración de Firebase
+   - Crea un nuevo proyecto en [Firebase Console](https://console.firebase.google.com/)
+   - Habilita la autenticación anónima en Authentication > Sign-in method
+   - Crea una nueva colección llamada "usuarios" en Firestore Database
+   - Copia las credenciales del proyecto desde Project Settings > General > Your apps > SDK setup
+   - Añade estas credenciales al archivo `.env.local`
 
 ## Ejecutar en modo desarrollo
 
@@ -76,7 +93,7 @@ npm run package:all
 - `/src` - Código fuente de la aplicación
   - `/app` - Componentes principales de la aplicación Next.js
   - `/components` - Componentes de UI reutilizables
-  - `/services` - Servicios para integración con IA y lógica de negocio
+  - `/services` - Servicios para integración con IA, Firebase y lógica de negocio
 - `/public` - Activos estáticos (iconos, imágenes)
 - `/backend_railway` - Servidor backend para procesamiento con OpenAI
 
