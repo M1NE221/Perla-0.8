@@ -244,6 +244,12 @@ export default function Home() {
       selectedSalesCount: selectedSales.length
     });
 
+    // Log selected sales IDs to help with debugging
+    if (selectedSales.length > 0) {
+      console.log('🔍 Selected sales IDs:', selectedSales);
+      console.log('🔍 Selected sales objects:', sales.filter(sale => selectedSales.includes(sale.id)));
+    }
+
     // Guardar la entrada actual para el historial
     const currentInput = input.trim();
     let newHistory = [...conversationHistory];
@@ -275,10 +281,11 @@ export default function Home() {
     console.log('📤 Enviando mensajes al backend:', JSON.stringify(messages));
     
     // Process input through AI with messages array
+    // Make sure we're passing the selected sales IDs
     const result = await processSaleInput(
       messages as { role: 'user' | 'assistant', content: string }[], 
       sales, 
-      selectedSales
+      selectedSales // Ensures selected sales are passed correctly
     );
     
     console.log('📥 Respuesta recibida del backend:', result);
@@ -388,8 +395,55 @@ export default function Home() {
           console.log('🔄 Verificación después de timeout, conteo de ventas:', sales.length);
         }, 100);
       } else if (result.updatedSales) {
-        // Update or delete operation that returns the full updated list
-        setSales(result.updatedSales);
+        // Fix for the editing issue - properly merge updated sales with existing ones
+        console.log('🔄 Actualizando ventas existentes:', result.updatedSales);
+        
+        // Create a map of existing sales by ID for quick lookups
+        const salesMap = new Map(sales.map(sale => [sale.id, sale]));
+        
+        // Process each updated sale
+        const mergedSales = result.updatedSales.map(updatedSale => {
+          // Get the existing sale if available
+          const existingSale = salesMap.get(updatedSale.id);
+          
+          if (existingSale) {
+            // Merge the updated sale with the existing one, preserving fields
+            // that weren't explicitly changed
+            console.log(`🔄 Merging sale ${updatedSale.id}:`, {
+              existing: existingSale,
+              updated: updatedSale
+            });
+            
+            return {
+              ...existingSale,  // Keep all existing fields
+              ...updatedSale,    // Overwrite with updated fields
+              // Ensure these fields are always present
+              id: updatedSale.id || existingSale.id,
+              product: updatedSale.product || existingSale.product,
+              amount: updatedSale.amount ?? existingSale.amount,
+              price: updatedSale.price ?? existingSale.price,
+              totalPrice: updatedSale.totalPrice ?? existingSale.totalPrice,
+              paymentMethod: updatedSale.paymentMethod || existingSale.paymentMethod,
+              client: updatedSale.client || existingSale.client,
+              date: updatedSale.date || existingSale.date
+            };
+          }
+          
+          // If it's a new sale (shouldn't happen in edit case, but just in case)
+          return updatedSale;
+        });
+        
+        // Get IDs from updated sales
+        const updatedIds = new Set(result.updatedSales.map(sale => sale.id));
+        
+        // Preserve any sales that weren't updated
+        const preservedSales = sales.filter(sale => !updatedIds.has(sale.id));
+        
+        // Combine preserved and merged sales
+        const newSalesArray = [...mergedSales, ...preservedSales];
+        console.log('✅ Sales array after merging:', newSalesArray);
+        
+        setSales(newSalesArray);
         // Clear selections after successful bulk operation
         setSelectedSales([]);
       } else if (result.deletedId) {
@@ -576,178 +630,317 @@ export default function Home() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-4 md:p-24 bg-black text-green-400 font-mono">
-      <div className="w-full max-w-3xl mx-auto relative" ref={containerRef}>
-        {/* Matrix-style title */}
-        <div className="absolute top-0 right-0 opacity-20 text-xs tracking-wider">
-          <div className="text-green-500">PERLA v1.0</div>
-        </div>
-        
-        {/* Input form */}
-        <form onSubmit={handleSubmit} className="mb-8 border border-green-900/30 rounded-lg p-6 shadow-lg shadow-green-900/10 backdrop-blur-sm">
-          <div className="flex items-center border-b border-green-800 pb-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={pendingClarification ? clarificationQuestion : "¿Qué vendiste?"}
-              className="w-full p-2 bg-transparent focus:outline-none placeholder:text-green-800 text-lg"
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && isRecordingActive) {
-                  e.preventDefault(); // Prevent form submission during recording
+    <main className="flex min-h-screen flex-col items-start p-6 relative">
+      {/* Light rays background element */}
+      <div className="light-rays"></div>
+      
+      <div className="w-full max-w-5xl" ref={containerRef}>
+        {/* Simple input field */}
+        <div className="mb-6">
+          <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
+            <div className="flex-grow relative">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={pendingClarification 
+                  ? "Responde a la aclaración..." 
+                  : selectedSales.length > 0 
+                    ? `Operando con ${selectedSales.length} item${selectedSales.length > 1 ? 's' : ''} seleccionado${selectedSales.length > 1 ? 's' : ''}...` 
+                    : "Escribe una venta o consulta..."
                 }
-              }}
-            />
-            <AudioRecorder 
-              onTranscriptionComplete={handleTranscriptionComplete}
-              onTranscriptionError={handleTranscriptionError}
-              onStartRecording={startAudioProcessing}
-              isProcessing={isProcessingAudio}
-              onRecordingStateChange={setIsRecordingActive}
-            />
-          </div>
-          
-          {/* Custom fields button row */}
-          <div className="flex flex-wrap gap-2 mt-4 mb-4">
-            {AVAILABLE_FIELDS.map(field => (
-              <button
-                key={field.key}
-                type="button"
-                className={`text-xs px-2 py-1 rounded transition-all duration-300 ${
-                  activeFields.includes(field.key) 
-                    ? 'bg-green-900/30 text-green-400 border border-green-800 shadow-sm shadow-green-800/50' 
-                    : 'bg-black text-green-800 border border-green-900/20 hover:border-green-800/50'
-                }`}
-                onClick={() => toggleField(field.key)}
-              >
-                {field.name}
-              </button>
-            ))}
-          </div>
-          
-          {/* Selection mode toggle */}
-          <div className="flex justify-between mb-4">
+                className="w-full rounded-xl p-4 glass-input"
+                disabled={isProcessingAudio || isRecordingActive}
+              />
+            </div>
+            
+            {/* Send button */}
             <button
-              type="button"
-              className={`text-xs px-3 py-1.5 rounded-full transition-all duration-300 ${
-                selectionMode 
-                  ? 'bg-green-900/30 text-green-300 border border-green-700' 
-                  : 'bg-black text-green-800 border border-green-900/30 hover:border-green-800/50'
+              type="submit"
+              disabled={!input.trim() || isProcessingAudio || isRecordingActive}
+              className={`p-2 rounded-full transition-colors ${
+                !input.trim() || isProcessingAudio || isRecordingActive
+                  ? 'bg-white/5 text-slate-300/50 cursor-not-allowed'
+                  : 'bg-white/10 hover:bg-amber-500/10 text-amber-600 hover:text-amber-700'
               }`}
-              onClick={toggleSelectionMode}
             >
-              {selectionMode ? 'Salir del modo selección' : 'Modo selección'}
+              <SendIcon />
             </button>
             
-            {selectionMode && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="text-xs px-3 py-1.5 rounded-full border border-green-900/30 hover:border-green-800 text-green-600 hover:text-green-500 transition-all"
-                  onClick={selectAllSales}
-                >
-                  Seleccionar todos
-                </button>
-                <button
-                  type="button"
-                  className="text-xs px-3 py-1.5 rounded-full border border-green-900/30 hover:border-green-800 text-green-600 hover:text-green-500 transition-all"
-                  onClick={clearSelections}
-                >
-                  Limpiar selección
-                </button>
-                <span className="text-xs px-3 py-1.5 text-green-700">
-                  {selectedSales.length} seleccionados
-                </span>
+            {/* Mic button */}
+            <AudioRecorder
+              onTranscriptionComplete={handleTranscriptionComplete}
+              onTranscriptionError={handleTranscriptionError}
+              isProcessing={isProcessingAudio}
+              onStartRecording={startAudioProcessing}
+              onRecordingStateChange={setIsRecordingActive}
+            />
+          </form>
+          
+          {/* Show transcription if available */}
+          {transcription && (
+            <div className="mt-3 text-sm">
+              <p className="opacity-70">Transcripción: {transcription}</p>
+            </div>
+          )}
+          
+          {isProcessingAudio && (
+            <div className="mt-3 text-sm animate-pulse">
+              <p className="opacity-70">Procesando audio...</p>
+            </div>
+          )}
+          
+          {/* Indicator for selected items */}
+          {selectedSales.length > 0 && (
+            <div className="mt-2 flex items-center">
+              <span className="text-sm text-amber-600 flex items-center gap-1">
+                <SelectionIcon />
+                {selectedSales.length} {selectedSales.length === 1 ? 'elemento seleccionado' : 'elementos seleccionados'}
+              </span>
+              <button 
+                onClick={clearSelections}
+                className="ml-2 text-xs px-2 py-0.5 rounded-lg bg-white/5 hover:bg-white/10"
+              >
+                Limpiar
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {/* AI Response area - directly below input */}
+        {(confirmation || pendingClarification || conversationHistory.length > 0) && (
+          <div className="mb-10 max-w-2xl">
+            {/* Handle clarification questions */}
+            {pendingClarification && (
+              <div className="mb-3">
+                <p className="text-sm opacity-80">
+                  <TypingResponse text={clarificationQuestion} typingSpeed={25} />
+                </p>
+              </div>
+            )}
+            
+            {/* Conversation history */}
+            {conversationHistory.length > 0 && (
+              <div className="mb-4 max-h-40 overflow-y-auto scrollbar-thin">
+                {conversationHistory.map((message, index) => (
+                  <div 
+                    key={index} 
+                    className={`mb-2 p-2 rounded-lg text-sm ${
+                      index % 2 === 0 
+                        ? 'bg-white/5 opacity-90' 
+                        : 'bg-white/10 opacity-90'
+                    }`}
+                  >
+                    {message}
+                  </div>
+                ))}
+              </div>
+            )}
+            
+            {confirmation && (
+              <div className="confirmation">
+                <TypingResponse text={confirmation} typingSpeed={20} />
               </div>
             )}
           </div>
-          
-          {/* Confirmation animation */}
-          {(confirmation || clarificationQuestion) && (
-            <div className="my-4 text-green-500 border-l-2 border-green-800 pl-3 pb-1">
-              <TypingResponse 
-                text={confirmation || clarificationQuestion} 
-                className="font-mono tracking-wide" 
-              />
-            </div>
-          )}
-        </form>
-        
-        {/* Insights */}
-        {insight && (
-          <div className="p-4 mb-6 border border-green-900/20 rounded-md text-sm opacity-80 bg-green-950/10">
-            <div className="text-green-600 mb-1 uppercase text-xs tracking-wider">Insights</div>
-            <div className="text-green-400/90">{insight}</div>
-          </div>
         )}
         
-        {/* Sales table */}
-        <div className="mb-8 overflow-hidden border border-green-900/30 rounded-lg shadow-lg shadow-green-900/10">
-          {/* Table headers */}
-          <div className="sales-header grid gap-1 p-3 bg-green-950/30 border-b border-green-800/30 text-xs uppercase tracking-wider">
-            {columnOrder.filter(key => activeFields.includes(key)).map(key => (
-              <div 
-                key={key}
-                className={`${draggingColumn === key ? 'text-white' : 'text-green-400'} cursor-move`}
-                draggable={true}
-                onDragStart={(e) => handleColumnDragStart(e, key)}
-                onDragOver={handleColumnDragOver}
-                onDrop={(e) => handleColumnDrop(e, key)}
+        {/* Minimal controls for selection */}
+        <div className="flex justify-between items-center mb-4 max-w-full overflow-x-auto">
+          {selectionMode ? (
+            <div className="flex items-center space-x-2">
+              <span className="text-sm">
+                {selectedSales.length} {selectedSales.length === 1 ? 'seleccionado' : 'seleccionados'}
+              </span>
+              <button 
+                onClick={selectAllSales}
+                className="text-xs px-2 py-1 rounded-lg bg-white/10"
               >
-                : {getFieldName(key)}
+                Seleccionar todo
+              </button>
+              <button 
+                onClick={clearSelections}
+                className="text-xs px-2 py-1 rounded-lg bg-white/10"
+              >
+                Limpiar
+              </button>
+              <button 
+                onClick={toggleSelectionMode}
+                className="text-xs px-2 py-1 rounded-lg bg-white/10"
+              >
+                Salir
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2 overflow-x-auto pb-2">
+              <div className="flex flex-wrap gap-2">
+                {AVAILABLE_FIELDS.map(field => (
+                  <button
+                    key={field.key}
+                    onClick={() => toggleField(field.key)}
+                    className={`px-2 py-1 text-xs rounded-lg transition-colors ${
+                      activeFields.includes(field.key)
+                        ? 'bg-white/20 text-slate-800'
+                        : 'bg-white/5 opacity-50'
+                    }`}
+                  >
+                    {field.name}
+                  </button>
+                ))}
               </div>
-            ))}
+              <button 
+                onClick={toggleSelectionMode}
+                className="text-sm px-3 py-1 rounded-lg bg-white/10 hover:bg-white/15 transition-colors ml-2 whitespace-nowrap"
+              >
+                Seleccionar
+              </button>
+            </div>
+          )}
+        </div>
+        
+        {/* Sales table - simple and minimal */}
+        <div className="glass-panel rounded-xl overflow-hidden max-w-full" ref={tableRef}>
+          <div className="sales-header grid gap-2 p-3 border-b border-white/10" style={{ gridTemplateColumns: `repeat(${activeFields.length}, minmax(0, 1fr))` }}>
+            {columnOrder
+              .filter(key => activeFields.includes(key))
+              .map(key => (
+                <div 
+                  key={key}
+                  draggable
+                  onDragStart={(e) => handleColumnDragStart(e, key)}
+                  onDragOver={handleColumnDragOver}
+                  onDrop={(e) => handleColumnDrop(e, key)}
+                  className={`px-2 font-medium text-sm select-none cursor-move ${
+                    draggingColumn === key ? 'opacity-50' : ''
+                  }`}
+                >
+                  {getFieldName(key)}
+                </div>
+              ))
+            }
           </div>
           
-          {/* Table body */}
-          <div className="bg-black/90">
-            <AnimatePresence>
-              {sales.map((sale, index) => (
-                <motion.div 
-                  key={sale.id}
-                  className={`grid gap-1 p-3 border-b border-green-900/20 hover:bg-green-950/10 transition-colors ${selectionMode && selectedSales.includes(sale.id) ? 'bg-green-950/30' : ''}`}
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.3 }}
-                  onClick={() => selectionMode && toggleSaleSelection(sale.id)}
-                  style={{
-                    gridTemplateColumns: `repeat(${columnOrder.filter(key => activeFields.includes(key)).length}, minmax(0, 1fr))`
-                  }}
-                >
-                  {columnOrder.filter(key => activeFields.includes(key)).map(key => (
-                    <div key={`${sale.id}-${key}`} className="overflow-hidden text-ellipsis whitespace-nowrap">
-                      {key === 'product' && <span className="text-white">{sale.product}</span>}
-                      {key === 'amount' && <span className="text-green-300">{sale.amount}</span>}
-                      {key === 'price' && <span className="text-green-400">${sale.price.toFixed(2)}</span>}
-                      {key === 'totalPrice' && <span className="text-green-300">${sale.totalPrice.toFixed(2)}</span>}
-                      {key === 'paymentMethod' && <span className="text-green-400/80">{sale.paymentMethod || 'Efectivo'}</span>}
-                      {key === 'client' && <span className="text-green-400/80">{sale.client || 'Anónimo'}</span>}
-                      {key === 'date' && <span className="text-green-600 text-xs">{sale.date ? format(new Date(sale.date), 'dd/MM/yyyy') : ''}</span>}
-                    </div>
-                  ))}
-                </motion.div>
-              ))}
+          <div className="sales-list max-h-[60vh] overflow-y-auto scrollbar-thin">
+            <AnimatePresence initial={false}>
+              {sales.length > 0 ? (
+                sales.map((sale) => (
+                  <motion.div
+                    key={sale.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, height: 0, overflow: 'hidden' }}
+                    transition={{ duration: 0.2 }}
+                    className={`sales-row grid gap-2 p-3 border-t border-white/5 ${
+                      selectionMode && 'cursor-pointer'
+                    } ${
+                      selectionMode && selectedSales.includes(sale.id) ? 'bg-white/10' : ''
+                    }`}
+                    style={{ gridTemplateColumns: `repeat(${activeFields.length}, minmax(0, 1fr))` }}
+                    onClick={() => selectionMode && toggleSaleSelection(sale.id)}
+                  >
+                    {columnOrder
+                      .filter(key => activeFields.includes(key))
+                      .map(key => {
+                        // Get the value based on the key
+                        let value = '';
+                        const field = key as keyof SaleData;
+                        
+                        if (key === 'totalPrice' && typeof sale.totalPrice === 'number') {
+                          value = `$${sale.totalPrice.toLocaleString('es-MX')}`;
+                        } else if (key === 'price' && typeof sale.price === 'number') {
+                          value = `$${sale.price.toLocaleString('es-MX')}`;
+                        } else if (key === 'date' && sale.date) {
+                          value = format(new Date(sale.date), 'dd/MM/yyyy');
+                        } else {
+                          value = String(sale[field] || '');
+                        }
+                        
+                        return (
+                          <div key={`${sale.id}-${key}`} className="px-2 text-sm truncate">
+                            {value}
+                          </div>
+                        );
+                      })
+                    }
+                  </motion.div>
+                ))
+              ) : (
+                <div className="text-center p-8 opacity-60">
+                  No hay ventas registradas
+                </div>
+              )}
             </AnimatePresence>
           </div>
+          
+          {sales.length > 0 && (
+            <div className="p-3 border-t border-white/10 flex justify-between">
+              <span className="text-sm opacity-70">Total: {sales.length} ventas</span>
+              <span className="text-sm font-medium">
+                ${sales.reduce((sum, sale) => sum + (sale.totalPrice || 0), 0).toLocaleString('es-MX')}
+              </span>
+            </div>
+          )}
         </div>
         
-        {/* Sales summary */}
-        <div className="flex justify-between items-center p-3 border border-green-900/30 rounded-lg bg-green-950/10 shadow-inner shadow-green-900/5">
-          <div className="text-green-600 font-mono text-sm">Total ventas: {sales.length}</div>
-          <div className="text-green-300 text-lg font-bold">
-            ${sales.reduce((sum, sale) => sum + sale.totalPrice, 0).toFixed(2)}
+        {/* Simple insights at the bottom if available */}
+        {insight && (
+          <div className="mt-6 max-w-3xl">
+            <TypingResponse text={insight} />
           </div>
-        </div>
-        
-        {/* Matrix-style decorative elements */}
-        <div className="fixed top-0 left-0 w-full h-full pointer-events-none z-[-1] opacity-10">
-          <div className="absolute top-10 left-10 w-32 h-32 border border-green-500/20 rounded-full"></div>
-          <div className="absolute bottom-20 right-20 w-40 h-40 border border-green-500/10 rounded-full"></div>
-          <div className="absolute top-1/3 right-1/4 w-20 h-20 border border-green-500/20 rounded-full"></div>
-        </div>
+        )}
       </div>
     </main>
   );
-} 
+}
+
+// Send icon component
+const SendIcon = () => (
+  <svg 
+    width="20" 
+    height="20" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      d="M22 2L11 13" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M22 2L15 22L11 13L2 9L22 2Z" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+// Selection icon
+const SelectionIcon = () => (
+  <svg 
+    width="16" 
+    height="16" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      d="M9 11L12 14L20 6" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M20 12V18C20 19.1046 19.1046 20 18 20H6C4.89543 20 4 19.1046 4 18V6C4 4.89543 4.89543 4 6 4H15" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+  </svg>
+); 

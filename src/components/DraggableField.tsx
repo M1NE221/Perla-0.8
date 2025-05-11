@@ -57,22 +57,22 @@ const DraggableField = ({
     whileHover: { 
       scale: 1.05, 
       opacity: 1,
-      boxShadow: "0 0 8px rgba(74, 222, 128, 0.2)"
+      boxShadow: "0 0 8px rgba(223, 178, 96, 0.3)"
     },
     whileTap: { 
       scale: 0.95,
-      boxShadow: "0 0 16px rgba(74, 222, 128, 0.3)" 
+      boxShadow: "0 0 16px rgba(223, 178, 96, 0.4)" 
     }
   };
 
   const fieldContent = (
     <motion.div
-      className={`${fixed ? '' : 'absolute'} cursor-move select-none px-4 py-2 rounded-full font-mono text-xs
+      className={`${fixed ? '' : 'absolute'} cursor-move select-none px-4 py-2 rounded-xl font-mono text-xs
                 ${isActive 
-                  ? 'text-accent border border-accent/20 bg-background/70 backdrop-blur-sm' 
-                  : 'text-text/50 border border-text/10 bg-background/50 backdrop-blur-sm'}
+                  ? 'text-amber-700 border border-amber-300/40 bg-white/15 backdrop-blur-md shadow-inner' 
+                  : 'text-slate-600 border border-white/10 bg-white/10 backdrop-blur-sm'}
                 ${isDragging 
-                  ? 'z-50 shadow-lg ring-1 ring-accent/30' 
+                  ? 'z-50 shadow-lg ring-1 ring-amber-300/30' 
                   : 'shadow-sm'}`}
       initial={animations.initial}
       animate={animations.animate}

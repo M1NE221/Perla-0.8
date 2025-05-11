@@ -36,22 +36,22 @@ const ErrorModal = ({ message, onClose }: ErrorModalProps) => {
   return (
     <AnimatePresence>
       <motion.div 
-        className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+        className="fixed inset-0 bg-black/20 backdrop-blur-md flex items-center justify-center z-50"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
       >
         <motion.div 
-          className="bg-[#1a1a1a] border border-white/10 rounded-lg p-5 max-w-md w-full mx-4"
+          className="glass-panel max-w-md w-full mx-4 p-6 rounded-xl"
           initial={{ scale: 0.9, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.9, opacity: 0 }}
           onClick={e => e.stopPropagation()}
         >
-          <h3 className="text-lg font-medium mb-2">Error al procesar el audio</h3>
-          <p className="text-gray-300 text-sm mb-4">{message}</p>
-          <div className="text-sm text-gray-400 mb-4">
+          <h3 className="text-lg font-light mb-2">Error al procesar el audio</h3>
+          <p className="opacity-80 text-sm mb-4">{message}</p>
+          <div className="text-sm opacity-70 mb-4">
             <p>Asegúrate de que:</p>
             <ul className="list-disc pl-5 mt-1">
               <li>Tu conexión a Internet sea estable</li>
@@ -60,7 +60,7 @@ const ErrorModal = ({ message, onClose }: ErrorModalProps) => {
             </ul>
           </div>
           <button 
-            className="bg-accent/20 hover:bg-accent/30 text-accent py-1.5 px-4 rounded-md w-full transition-colors"
+            className="bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 py-1.5 px-4 rounded-lg w-full transition-colors"
             onClick={onClose}
           >
             Cerrar
@@ -361,73 +361,195 @@ export default function AudioRecorder({
   };
   
   return (
-    <div className="flex items-center gap-3">
-      {permissionDenied ? (
-        <div className="text-red-500 text-xs">
-          Se requiere acceso al micrófono para grabación de voz
-        </div>
-      ) : (
-        <>
-          <motion.button
-            onClick={handleRecordClick}
-            disabled={isProcessing}
-            className={`transition-colors flex items-center justify-center
-              ${isRecording ? 'text-gray-400' : 'text-gray-400 hover:text-gray-300'}
-              ${isProcessing ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-            whileHover={!isProcessing ? { scale: 1.05 } : {}}
-            whileTap={!isProcessing ? { scale: 0.95 } : {}}
-            type="button" // Explicitly set to button to avoid form submission
-          >
-            {isRecording ? (
-              // Square stop icon
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
-                <rect x="6" y="6" width="12" height="12" />
-              </svg>
-            ) : (
-              // Microphone icon
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="22"></line>
-              </svg>
-            )}
-          </motion.button>
-          
-          {isRecording && (
-            <div className="ml-1 flex items-center">
-              <div className="relative mr-1">
-                <div className="absolute top-0 right-0 -mr-1 -mt-1">
-                  <span className="flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-gray-400/30 opacity-75 animate-ping"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-gray-400/40"></span>
-                  </span>
-                </div>
-              </div>
-              <span className="text-xs text-gray-400/70">
-                {formatTime(recordingDuration)}
-              </span>
-            </div>
-          )}
-          
-          {isProcessing && (
-            <motion.div 
-              className="text-xs font-mono text-gray-500"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-            >
-              Procesando audio...
-            </motion.div>
-          )}
-        </>
+    <>
+      {errorMessage && (
+        <ErrorModal message={errorMessage} onClose={() => setErrorMessage(null)} />
       )}
       
-      {/* Error Modal */}
-      {errorMessage && (
-        <ErrorModal 
-          message={errorMessage} 
-          onClose={() => setErrorMessage(null)} 
-        />
+      {permissionDenied ? (
+        <button 
+          className="p-2.5 text-sm bg-white/10 hover:bg-white/15 rounded-full text-red-400"
+          onClick={requestMicrophonePermission}
+          title="Permiso de micrófono denegado. Haz clic para solicitar nuevamente."
+        >
+          <MicError />
+        </button>
+      ) : isRecording ? (
+        <button
+          onClick={handleRecordClick}
+          disabled={isProcessing}
+          className="flex items-center gap-1 p-2.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 rounded-full transition-colors"
+        >
+          <RecordingIcon />
+          <span className="text-xs pr-1">{formatTime(recordingDuration)}</span>
+        </button>
+      ) : (
+        <button
+          onClick={handleRecordClick}
+          disabled={isProcessing}
+          className={`p-2.5 rounded-full transition-colors ${
+            isProcessing 
+              ? 'bg-white/10 text-slate-400' 
+              : 'bg-white/10 hover:bg-amber-500/10 text-slate-700 hover:text-amber-700'
+          }`}
+        >
+          {isProcessing ? <ProcessingIcon /> : <MicIcon />}
+        </button>
       )}
-    </div>
+    </>
   );
-} 
+}
+
+// Mic icon
+const MicIcon = () => (
+  <svg 
+    width="24" 
+    height="24" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      d="M12 14C13.66 14 15 12.66 15 11V5C15 3.34 13.66 2 12 2C10.34 2 9 3.34 9 5V11C9 12.66 10.34 14 12 14Z" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M19 11C19 14.87 15.87 18 12 18C8.13 18 5 14.87 5 11" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M12 18V22" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+// Processing icon (spinning animation)
+const ProcessingIcon = () => (
+  <svg 
+    className="animate-spin" 
+    width="24" 
+    height="24" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      d="M12 2V6" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="0.5"
+    />
+    <path 
+      d="M12 18V22" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M4.93 4.93L7.76 7.76" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="0.6"
+    />
+    <path 
+      d="M16.24 16.24L19.07 19.07" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="0.9"
+    />
+    <path 
+      d="M2 12H6" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="0.7"
+    />
+    <path 
+      d="M18 12H22" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="1"
+    />
+    <path 
+      d="M4.93 19.07L7.76 16.24" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="0.8"
+    />
+    <path 
+      d="M16.24 7.76L19.07 4.93" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+      opacity="0.4"
+    />
+  </svg>
+);
+
+// Recording icon (pulsing red dot)
+const RecordingIcon = () => (
+  <svg 
+    width="24" 
+    height="24" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <circle 
+      cx="12" 
+      cy="12" 
+      r="6" 
+      fill="currentColor" 
+      className="animate-pulse" 
+    />
+  </svg>
+);
+
+// Mic permission error icon
+const MicError = () => (
+  <svg 
+    width="24" 
+    height="24" 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path 
+      d="M12 14C13.66 14 15 12.66 15 11V5C15 3.34 13.66 2 12 2C10.34 2 9 3.34 9 5V11C9 12.66 10.34 14 12 14Z" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+    <path 
+      d="M4.93 19.07L19.07 4.93" 
+      stroke="currentColor" 
+      strokeWidth="1.5" 
+      strokeLinecap="round" 
+      strokeLinejoin="round"
+    />
+  </svg>
+); 

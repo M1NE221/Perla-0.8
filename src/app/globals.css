@@ -5,28 +5,28 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-rgb: 0, 0, 0;
-  --accent-rgb: 34, 197, 94; /* green-500 */
-  --matrix-green: 34, 197, 94;
-  --matrix-dark: 2, 44, 34;
-  --matrix-light: 187, 247, 208;
+  --foreground-rgb: 60, 60, 65;
+  --background-rgb: 250, 250, 255;
+  --accent-rgb: 223, 178, 96; /* Golden accent */
+  --accent-light: 255, 237, 213;
+  --accent-dark: 180, 140, 70;
+  --glass-white: 255, 255, 255;
+  --glass-highlight: 255, 248, 230;
+  --glass-shadow: 100, 116, 139;
 }
 
 body {
   color: rgb(var(--foreground-rgb));
   background: rgb(var(--background-rgb));
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji';
   min-height: 100vh;
   margin: 0;
   padding: 0;
-  background-image: 
-    radial-gradient(circle at 25% 25%, rgba(var(--matrix-dark), 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(var(--matrix-dark), 0.1) 0%, transparent 50%);
   position: relative;
   overflow-x: hidden;
 }
 
+/* Celestial background with radial gradient */
 body::before {
   content: "";
   position: fixed;
@@ -34,59 +34,162 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
-  background-image: url("data:image/svg+xml,%3Csvg width='20' height='20' xmlns='http://www.w3.org/2000/svg'%3E%3Ctext x='0' y='15' font-family='monospace' font-size='20' fill='rgba(34, 197, 94, 0.03)' opacity='0.5'%3E1%3C/text%3E%3C/svg%3E");
-  opacity: 0.05;
+  background: 
+    radial-gradient(circle at center, 
+      rgba(var(--accent-rgb), 0.3) 0%, 
+      rgba(var(--accent-light), 0.3) 30%, 
+      rgba(var(--glass-white), 0.2) 60%, 
+      rgba(var(--background-rgb), 0.1) 100%);
+  z-index: -2;
+}
+
+/* Subtle texture overlay */
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
   pointer-events: none;
   z-index: -1;
 }
 
-input {
-  background-color: transparent;
-  border: none;
-  color: rgb(var(--matrix-light));
-  font-family: 'IBM Plex Mono', monospace;
+/* Light rays effect */
+.light-rays {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 150vmax;
+  height: 150vmax;
+  background: conic-gradient(
+    from 0deg at 50% 50%,
+    rgba(var(--accent-rgb), 0) 0deg,
+    rgba(var(--accent-rgb), 0.05) 20deg,
+    rgba(var(--accent-rgb), 0) 40deg,
+    rgba(var(--accent-rgb), 0) 60deg,
+    rgba(var(--accent-rgb), 0.05) 80deg,
+    rgba(var(--accent-rgb), 0) 100deg,
+    rgba(var(--accent-rgb), 0) 120deg,
+    rgba(var(--accent-rgb), 0.05) 140deg,
+    rgba(var(--accent-rgb), 0) 160deg,
+    rgba(var(--accent-rgb), 0) 180deg,
+    rgba(var(--accent-rgb), 0.05) 200deg,
+    rgba(var(--accent-rgb), 0) 220deg,
+    rgba(var(--accent-rgb), 0) 240deg,
+    rgba(var(--accent-rgb), 0.05) 260deg,
+    rgba(var(--accent-rgb), 0) 280deg,
+    rgba(var(--accent-rgb), 0) 300deg,
+    rgba(var(--accent-rgb), 0.05) 320deg,
+    rgba(var(--accent-rgb), 0) 340deg,
+    rgba(var(--accent-rgb), 0) 360deg
+  );
+  z-index: -1;
+  opacity: 0.7;
+  animation: rotate 180s linear infinite;
+}
+
+@keyframes rotate {
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Glass panel - more subtle and minimal */
+.glass-panel {
+  background: rgba(var(--glass-white), 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 1.25rem;
+  box-shadow: 
+    0 4px 30px rgba(var(--glass-shadow), 0.03), 
+    inset 0 1px 1px rgba(var(--glass-white), 0.4);
+  border: 1px solid rgba(var(--glass-white), 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Glass input style - special focus for input */
+.glass-input {
+  background: rgba(var(--glass-white), 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(var(--glass-white), 0.2);
+  color: rgb(var(--foreground-rgb));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji';
   font-size: 1rem;
-  padding: 0.5rem 0;
+  transition: all 0.3s ease;
+  box-shadow: 
+    0 4px 20px rgba(var(--glass-shadow), 0.02), 
+    inset 0 1px 1px rgba(var(--glass-white), 0.3);
+}
+
+.glass-input:focus {
+  outline: none;
+  background-color: rgba(var(--glass-white), 0.15);
+  border-color: rgba(var(--accent-rgb), 0.25);
+  box-shadow: 
+    0 4px 20px rgba(var(--glass-shadow), 0.05), 
+    inset 0 1px 1px rgba(var(--glass-white), 0.4),
+    0 0 0 3px rgba(var(--accent-rgb), 0.1);
+}
+
+input {
+  background-color: rgba(var(--glass-white), 0.12);
+  border: 1px solid rgba(var(--glass-white), 0.2);
+  border-radius: 0.75rem;
+  color: rgb(var(--foreground-rgb));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji';
+  font-size: 1rem;
+  padding: 0.75rem 1.25rem;
   width: 100%;
-  transition: border-color 0.3s ease;
+  transition: all 0.3s ease;
 }
 
 input:focus {
   outline: none;
+  background-color: rgba(var(--glass-white), 0.2);
+  border-color: rgba(var(--accent-rgb), 0.3);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.1);
 }
 
 input::placeholder {
-  color: rgba(var(--matrix-green), 0.4);
+  color: rgba(var(--foreground-rgb), 0.4);
 }
 
-/* Matrix style glowing effect */
+/* Subtle glow effect */
 @keyframes glow {
   0% {
-    box-shadow: 0 0 5px rgba(var(--matrix-green), 0.3);
+    box-shadow: 0 0 5px rgba(var(--accent-rgb), 0.2);
   }
   50% {
-    box-shadow: 0 0 10px rgba(var(--matrix-green), 0.5);
+    box-shadow: 0 0 10px rgba(var(--accent-rgb), 0.4);
   }
   100% {
-    box-shadow: 0 0 5px rgba(var(--matrix-green), 0.3);
+    box-shadow: 0 0 5px rgba(var(--accent-rgb), 0.2);
   }
 }
 
 .sales-header {
   grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  background: rgba(var(--glass-white), 0.07);
 }
 
 /* Style for the sales rows */
 .sales-row {
   display: grid;
   transition: all 0.2s ease;
+  border-radius: 0.25rem;
 }
 
 .sales-row:hover {
-  background-color: rgba(var(--matrix-green), 0.05);
+  background-color: rgba(var(--accent-rgb), 0.05);
 }
 
-/* Matrix-style text cursor */
+/* Modern text cursor */
 @keyframes blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -96,7 +199,7 @@ input::after {
   content: "|";
   margin-left: 2px;
   animation: blink 1s step-end infinite;
-  color: rgb(var(--matrix-green));
+  color: rgb(var(--accent-rgb));
 }
 
 /* Custom scrollbar */
@@ -106,43 +209,45 @@ input::after {
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(var(--glass-white), 0.1);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(var(--matrix-green), 0.3);
+  background: rgba(var(--accent-rgb), 0.2);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--matrix-green), 0.5);
+  background: rgba(var(--accent-rgb), 0.3);
 }
 
 table {
   width: 100%;
-  border-collapse: collapse;
-  font-family: 'IBM Plex Mono', monospace;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji';
   font-size: 0.875rem;
 }
 
 th {
   text-align: left;
-  color: rgba(255, 255, 255, 0.6);
-  font-weight: 400;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(var(--foreground-rgb), 0.7);
+  font-weight: 500;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(var(--foreground-rgb), 0.07);
 }
 
 td {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(var(--foreground-rgb), 0.03);
 }
 
 .confirmation {
   color: rgb(var(--accent-rgb));
-  font-family: 'IBM Plex Mono', monospace;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji';
   font-size: 0.875rem;
-  margin: 1rem 0;
+  margin: 0.5rem 0 1rem;
 }
 
 .container {
@@ -151,4 +256,25 @@ td {
   display: flex;
   flex-direction: column;
   align-items: center;
+  border-radius: 1rem;
+}
+
+button {
+  background: rgba(var(--glass-white), 0.12);
+  border: 1px solid rgba(var(--glass-white), 0.15);
+  border-radius: 0.5rem;
+  padding: 0.5rem 1rem;
+  color: rgb(var(--foreground-rgb));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji';
+  transition: all 0.2s ease;
+}
+
+button:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+  border-color: rgba(var(--accent-rgb), 0.2);
+}
+
+button:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.15);
 } 

@@ -17,12 +17,12 @@ const TypingResponse = ({
   const [isTyping, setIsTyping] = useState(false);
   const [scrambledChar, setScrambledChar] = useState('');
   
-  // Matrix character scramble effect
+  // Subtle character scramble effect
   useEffect(() => {
     if (isTyping) {
-      const matrixChars = '01αβγδεζηθικλμνξοπρστυφχψωАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ';
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
       const interval = setInterval(() => {
-        const randomChar = matrixChars.charAt(Math.floor(Math.random() * matrixChars.length));
+        const randomChar = chars.charAt(Math.floor(Math.random() * chars.length));
         setScrambledChar(randomChar);
       }, 50);
       
@@ -64,22 +64,22 @@ const TypingResponse = ({
   
   // Handle empty text case
   if (!text) {
-    return <div className={`font-mono relative ${className} text-red-500`}>Texto vacío recibido</div>;
+    return <div className={`relative ${className} text-amber-500/70`}>Esperando respuesta...</div>;
   }
   
   // Split the text into array to apply character-by-character animations
   const characters = displayedText.split('');
 
   return (
-    <div className={`font-mono relative ${className}`}>
+    <div className={`relative ${className}`}>
       {characters.length > 0 ? (
         characters.map((char, index) => (
           <motion.span
             key={`${index}-${char}`}
-            initial={{ opacity: 0, y: -5 }}
+            initial={{ opacity: 0, y: -3 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.1 }}
-            className={index === characters.length - 1 ? 'text-white' : ''}
+            className={index === characters.length - 1 ? 'text-amber-500' : ''}
           >
             {char}
           </motion.span>
@@ -88,7 +88,7 @@ const TypingResponse = ({
         // If no characters yet but we have text, show a blinking cursor
         text && isTyping && (
           <motion.span
-            className="inline-block w-2 h-4 bg-green-500"
+            className="inline-block w-2 h-4 bg-amber-400/80"
             animate={{ opacity: [1, 0, 1] }}
             transition={{ 
               duration: 0.5, 
@@ -101,7 +101,7 @@ const TypingResponse = ({
       {isTyping && (
         <>
           <motion.span
-            className="inline-block text-green-400/80"
+            className="inline-block text-amber-400/80"
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ 
               duration: 0.2, 
@@ -112,7 +112,7 @@ const TypingResponse = ({
             {scrambledChar}
           </motion.span>
           <motion.span
-            className="inline-block w-2 h-4 bg-green-500 ml-1"
+            className="inline-block w-2 h-4 bg-amber-400/80 ml-0.5 rounded-sm"
             animate={{ opacity: [1, 0, 1] }}
             transition={{ 
               duration: 0.5, 
