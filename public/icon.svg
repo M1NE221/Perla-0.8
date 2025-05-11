@@ -1,0 +1,19 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Background circle with gradient similar to pearl -->
+  <circle cx="256" cy="256" r="250" fill="url(#pearlGradient)" />
+  
+  <!-- Define gradient to mimic pearl effect -->
+  <defs>
+    <radialGradient id="pearlGradient" cx="40%" cy="40%" r="60%" fx="30%" fy="30%">
+      <stop offset="0%" style="stop-color:#ffffff" />
+      <stop offset="50%" style="stop-color:#f5f5f0" />
+      <stop offset="70%" style="stop-color:#e6e6d9" />
+      <stop offset="100%" style="stop-color:#d9d9c9" />
+    </radialGradient>
+  </defs>
+  
+  <!-- Add some subtle highlights -->
+  <ellipse cx="200" cy="200" rx="120" ry="100" fill="white" opacity="0.3" />
+  <ellipse cx="300" cy="300" rx="100" ry="80" fill="#f0f0e6" opacity="0.2" />
+</svg>

@@ -1,0 +1,92 @@
+{
+  "name": "perla",
+  "version": "0.8.0",
+  "private": true,
+  "main": "electron/main.js",
+  "author": "Perla Team",
+  "description": "A minimalist AI sales tracker",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "electron:dev": "concurrently \"cross-env PORT=3333 next dev -p 3333\" \"wait-on http://localhost:3333 && electron .\"",
+    "electron:build": "npm run build && electron-builder",
+    "package:mac": "next build && electron-builder --mac",
+    "package:win": "npm run build && electron-builder --win",
+    "package:all": "next build && electron-builder --mac --win",
+    "generate-icons": "mkdir -p scripts && node scripts/generate-icons.js",
+    "generate-mac-icon": "scripts/generate-mac-icon.sh",
+    "setup-icons": "node scripts/simple-icons.js",
+    "pearl-icon": "node scripts/direct-icon.js",
+    "install-pearl": "node scripts/save-pearl-icon.js",
+    "create-png-icon": "node electron/create-base64-icon.js",
+    "build:desktop": "node scripts/build.js",
+    "prepare-for-landing": "node scripts/prepare-for-landing.js"
+  },
+  "dependencies": {
+    "axios": "^1.8.4",
+    "date-fns": "^2.30.0",
+    "express-rate-limit": "^7.5.0",
+    "form-data": "^4.0.2",
+    "framer-motion": "^10.16.4",
+    "helmet": "^8.1.0",
+    "inter-font": "^3.19.0",
+    "morgan": "^1.10.0",
+    "next": "^14.2.28",
+    "openai": "^4.20.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-draggable": "^4.4.5",
+    "react-type-animation": "^3.2.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.4",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.16",
+    "canvas": "^3.1.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^28.2.1",
+    "electron-builder": "^24.9.1",
+    "electron-serve": "^1.2.0",
+    "eslint": "^8.55.0",
+    "eslint-config-next": "^14.0.4",
+    "postcss": "^8.4.32",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.3",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.perla.desktop",
+    "productName": "Perla",
+    "files": [
+      "out/**/*",
+      "electron/**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/tests",
+      "!**/*.md",
+      "!**/*.map",
+      "!backend/**/*",
+      "!electron/backend.js"
+    ],
+    "directories": {
+      "buildResources": "public",
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/icon.ico"
+    },
+    "asar": true,
+    "asarUnpack": [],
+    "forceCodeSigning": false,
+    "npmRebuild": false,
+    "buildDependenciesFromSource": true
+  }
+}
