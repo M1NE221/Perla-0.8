@@ -29,7 +29,10 @@ import {
   saveSalesToFirestore, 
   loadSalesFromFirestore,
   savePreferencesToFirestore,
-  loadPreferencesFromFirestore
+  loadPreferencesFromFirestore,
+  updateSaleInFirestore,
+  deleteSalesFromFirestore,
+  saveSuggestionToFirestore
 } from '@/services/firebaseService';
 
 // Define available fields for customization
@@ -268,11 +271,17 @@ export default function Home() {
   
   // Toggle selection of a sale
   const toggleSaleSelection = (id: string) => {
-    setSelectedSales(prev => 
-      prev.includes(id) 
+    setSelectedSales(prev => {
+      const wasSelected = prev.includes(id);
+      const newSelectedSales = wasSelected 
         ? prev.filter(saleId => saleId !== id) 
-        : [...prev, id]
-    );
+        : [...prev, id];
+      
+      console.log(`${wasSelected ? '🔳 Deseleccionando' : '☑️ Seleccionando'} venta con ID: ${id}`);
+      console.log('ℹ️ Total seleccionadas:', newSelectedSales.length);
+      
+      return newSelectedSales;
+    });
   };
   
   // Select all visible sales
@@ -379,13 +388,14 @@ export default function Home() {
         : currentInput 
     };
     
-    // Crear array de mensajes para enviar al backend
+    // Create array of messages to send to backend
     // Si estamos en clarificación, añadir al historial existente, sino comenzar nuevo
     const messages = pendingClarification
       ? [...chatHistory, newUserMessage]
       : [newUserMessage];
     
     console.log('📤 Enviando mensajes al backend:', JSON.stringify(messages));
+    console.log('🔍 Ventas seleccionadas:', selectedSales);
     
     // Process input through AI with messages array
     const result = await processSaleInput(
@@ -400,51 +410,32 @@ export default function Home() {
     if (result.success) {
       console.log('✅ Respuesta exitosa del backend');
       
-      // Handle clarification requests
+      // Check if it's a specific kind of pending action
       if (result.pendingAction === 'request_clarification') {
-        console.log('❓ Se requiere clarificación:', result.missingInfo);
-        // Es una solicitud de clarificación
+        // Set UI to clarification mode
+        console.log('Se requiere clarificación:', result.missingInfo);
         setPendingClarification(true);
-        
-        // Extraer el mensaje de clarificación de forma segura
-        const clarificationMsg = typeof result.message === 'string'
-          ? result.message
-          : result.missingInfo?.question || "Necesito más información.";
-          
-        setClarificationQuestion(clarificationMsg);
-        
-        // Solo guardar el contexto previo si es una nueva consulta
-        if (!pendingClarification) {
-          setPreviousContext(currentInput);
+        setClarificationQuestion(result.missingInfo?.question || result.message);
+        setChatHistory(messages);
+        return;
+      }
+      
+      // Handle suggestions if detected in the response
+      if (result.pendingAction === 'suggestion' && result.suggestion) {
+        console.log('Sugerencia detectada:', result.suggestion);
+        try {
+          // Save suggestion to Firestore
+          await saveSuggestionToFirestore(result.suggestion);
+          setConfirmation('¡Gracias por tu sugerencia! La hemos registrado y la tomaremos en cuenta para mejorar Perla.');
+        } catch (error) {
+          console.error('Error al guardar sugerencia:', error);
+          setConfirmation('Recibimos tu sugerencia, pero hubo un error al guardarla. Por favor, intenta nuevamente.');
         }
         
-        // Actualizar el historial de conversación UI
-        setConversationHistory(newHistory);
-        
-        // Agregar mensaje del asistente (con la pregunta) al chat history
-        const clarificationMessage = { 
-          role: 'assistant' as const, 
-          content: clarificationMsg
-        };
-        setChatHistory([...messages, clarificationMessage]);
-        
-        // Set confirmation message
-        setConfirmation(clarificationMsg);
-        console.log('🔄 Estado de clarificación configurado, esperando respuesta del usuario');
+        // Reset state for next interaction
+        setInput('');
+        setChatHistory([]);
         return;
-      } else {
-        // Si no es una clarificación, reiniciar el estado
-        console.log('✅ No es una clarificación, reseteando estado de clarificación');
-        console.log('📋 Estado de chatHistory antes de resetear:', chatHistory);
-        setConversationHistory([]);
-        setChatHistory([]); // Reset chat history after successful sale
-        setPendingClarification(false);
-        setClarificationQuestion('');
-        setPreviousContext('');
-        // Log después de timeout para verificar que el estado se actualizó
-        setTimeout(() => {
-          console.log('📋 Estado de chatHistory después de resetear:', chatHistory);
-        }, 100);
       }
       
       // Convertir mensaje a string de forma segura para mostrar confirmación
@@ -516,14 +507,56 @@ export default function Home() {
         }, 100);
       } else if (result.updatedSales) {
         // Update or delete operation that returns the full updated list
+        console.log('✏️ Actualizando ventas:', result.updatedSales);
+        
+        // Get what changed by comparing with current sales
+        const updatedSaleIds = result.updatedSales
+          .filter(updatedSale => {
+            const originalSale = sales.find(s => s.id === updatedSale.id);
+            // Return true if this sale exists and has been modified
+            return originalSale && JSON.stringify(originalSale) !== JSON.stringify(updatedSale);
+          })
+          .map(sale => sale.id);
+        
+        if (updatedSaleIds.length > 0) {
+          console.log('✅ Ventas modificadas con IDs:', updatedSaleIds);
+          
+          // For each updated sale, call updateSaleInFirestore
+          const updatePromises = result.updatedSales
+            .filter(sale => updatedSaleIds.includes(sale.id))
+            .map(sale => updateSaleInFirestore(sale));
+          
+          // Wait for all updates to complete
+          Promise.all(updatePromises).catch(err => 
+            console.error('Error updating sales in Firestore:', err)
+          );
+        }
+        
+        // Update state with the new sales list
         setSales(result.updatedSales);
         // Clear selections after successful bulk operation
         setSelectedSales([]);
       } else if (result.deletedId) {
         // Delete operation that returns just the ID to remove
+        console.log('🗑️ Eliminando venta con ID:', result.deletedId);
+        
+        // Update Firebase using the specific delete function
+        deleteSalesFromFirestore([result.deletedId]).catch(err => 
+          console.error('Error deleting sale from Firestore:', err)
+        );
+        
+        // Update local state
         setSales(prevSales => prevSales.filter(sale => sale.id !== result.deletedId));
       } else if (result.deletedIds) {
         // Bulk delete operation
+        console.log('🗑️ Eliminando ventas con IDs:', result.deletedIds);
+        
+        // Update Firebase using the specific delete function
+        deleteSalesFromFirestore(result.deletedIds).catch(err => 
+          console.error('Error deleting multiple sales from Firestore:', err)
+        );
+        
+        // Update local state
         setSales(prevSales => prevSales.filter(sale => !result.deletedIds?.includes(sale.id)));
         // Clear selections after successful bulk operation
         setSelectedSales([]);
@@ -584,6 +617,19 @@ export default function Home() {
         // Check for sales in other possible locations
         if (process.env.NODE_ENV !== 'production') {
           console.log('No direct sales found in result, checking other locations');
+          // Additional detailed debugging information
+          console.log('Response data details:', {
+            hasSuccess: result.success,
+            hasMessage: Boolean(result.message),
+            messageLength: result.message ? result.message.length : 0,
+            messagePreview: result.message ? result.message.substring(0, 50) + '...' : '',
+            hasSale: Boolean(result.sale),
+            hasSales: Boolean(result.sales),
+            hasUpdatedSales: Boolean(result.updatedSales),
+            hasDeletedId: Boolean(result.deletedId),
+            hasDeletedIds: Boolean(result.deletedIds),
+            fullResultKeys: Object.keys(result),
+          });
         }
         
         // Try to parse the message as JSON if it's a string
@@ -789,6 +835,27 @@ export default function Home() {
               </div>
             )}
           </div>
+          
+          {/* Helper message for selection mode */}
+          {selectionMode && (
+            <div className="my-3 text-xs text-green-600/80 bg-green-950/10 p-2 rounded border border-green-900/20">
+              {selectedSales.length === 0 ? (
+                <p>Modo selección activo. Haga clic en las ventas para seleccionarlas, luego escriba comandos.</p>
+              ) : (
+                <>
+                  <p className="font-bold text-green-500">
+                    ✓ {selectedSales.length} {selectedSales.length === 1 ? 'venta seleccionada' : 'ventas seleccionadas'}
+                  </p>
+                  <p className="mt-1">Puedes escribir comandos como:</p>
+                  <ul className="list-disc pl-5 mt-1 space-y-1">
+                    <li>"Actualiza el monto a 5750 en las ventas seleccionadas"</li>
+                    <li>"Elimina las ventas seleccionadas"</li>
+                    <li>"Cambia el cliente a Juan en esta venta"</li>
+                  </ul>
+                </>
+              )}
+            </div>
+          )}
           
           {/* Confirmation animation */}
           {(confirmation || clarificationQuestion) && (

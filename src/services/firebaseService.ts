@@ -168,6 +168,80 @@ export const loadSalesFromFirestore = async (): Promise<any[] | null> => {
   }
 };
 
+// Update a specific sale in Firestore
+export const updateSaleInFirestore = async (updatedSale: any): Promise<void> => {
+  if (!currentUser) {
+    console.error("No authenticated user found");
+    return;
+  }
+  
+  try {
+    // Get current sales array
+    const userDocRef = doc(db, "usuarios", currentUser.uid);
+    const docSnap = await getDoc(userDocRef);
+    
+    if (!docSnap.exists() || !docSnap.data().sales) {
+      console.error("No sales data found for update");
+      return;
+    }
+    
+    // Find and update the specific sale
+    const currentSales = docSnap.data().sales;
+    const updatedSales = currentSales.map((sale: any) => 
+      sale.id === updatedSale.id ? { ...updatedSale } : sale
+    );
+    
+    console.log(`Updating sale with ID: ${updatedSale.id}`);
+    
+    // Save the updated sales array
+    await setDoc(userDocRef, {
+      sales: updatedSales,
+      lastUpdated: serverTimestamp()
+    }, { merge: true });
+    
+    console.log("Sale updated in Firestore");
+  } catch (error) {
+    console.error("Error updating sale in Firestore:", error);
+    throw error;
+  }
+};
+
+// Delete specific sales from Firestore by ID
+export const deleteSalesFromFirestore = async (saleIds: string[]): Promise<void> => {
+  if (!currentUser) {
+    console.error("No authenticated user found");
+    return;
+  }
+  
+  try {
+    // Get current sales array
+    const userDocRef = doc(db, "usuarios", currentUser.uid);
+    const docSnap = await getDoc(userDocRef);
+    
+    if (!docSnap.exists() || !docSnap.data().sales) {
+      console.error("No sales data found for deletion");
+      return;
+    }
+    
+    // Filter out the sales to be deleted
+    const currentSales = docSnap.data().sales;
+    const updatedSales = currentSales.filter((sale: any) => !saleIds.includes(sale.id));
+    
+    console.log(`Deleting ${saleIds.length} sales with IDs: ${saleIds.join(', ')}`);
+    
+    // Save the updated sales array
+    await setDoc(userDocRef, {
+      sales: updatedSales,
+      lastUpdated: serverTimestamp()
+    }, { merge: true });
+    
+    console.log("Sales deleted from Firestore");
+  } catch (error) {
+    console.error("Error deleting sales from Firestore:", error);
+    throw error;
+  }
+};
+
 // Save user preferences to Firestore
 export const savePreferencesToFirestore = async (
   preferences: {
@@ -228,6 +302,32 @@ export const loadPreferencesFromFirestore = async (): Promise<{
     }
   } catch (error) {
     console.error("Error loading user preferences from Firestore:", error);
+    throw error;
+  }
+};
+
+// Save user suggestions to Firestore
+export const saveSuggestionToFirestore = async (suggestion: string): Promise<void> => {
+  if (!currentUser) {
+    console.error("No authenticated user found");
+    return;
+  }
+  
+  try {
+    // Create a new document in the sugerencias collection
+    const suggestionsCollection = collection(db, "sugerencias");
+    
+    // Add the suggestion with user ID and timestamp
+    await setDoc(doc(suggestionsCollection), {
+      userId: currentUser.uid,
+      suggestion,
+      createdAt: serverTimestamp(),
+      status: 'new' // Can be 'new', 'reviewed', 'implemented', etc.
+    });
+    
+    console.log("User suggestion saved to Firestore");
+  } catch (error) {
+    console.error("Error saving suggestion to Firestore:", error);
     throw error;
   }
 };

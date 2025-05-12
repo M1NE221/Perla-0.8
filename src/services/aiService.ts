@@ -39,7 +39,7 @@ export interface ActionResult {
   deletedIds?: string[]; // For bulk delete operations
   updatedSales?: SaleData[]; // For returning the updated sales list
   insight?: string;
-  pendingAction?: 'update_prices' | 'confirm_entity_match' | 'request_clarification'; // Added 'request_clarification'
+  pendingAction?: 'update_prices' | 'confirm_entity_match' | 'request_clarification' | 'suggestion'; // Added 'suggestion'
   potentialMatches?: { // For entity matching confirmation
     products?: Array<{original: string, potential: string}>;
     clients?: Array<{original: string, potential: string}>;
@@ -49,6 +49,7 @@ export interface ActionResult {
     type: 'product_details' | 'quantity' | 'price' | 'other';
     question: string;
   };
+  suggestion?: string; // Added to store user suggestions
 }
 
 // Entity similarity threshold (0-1 where 1 is exact match)
@@ -398,9 +399,24 @@ const validateSaleObject = (sale: any): SaleData | null => {
 
   try {
     // Check required fields
-    if (!sale.product || sale.amount === undefined || sale.price === undefined) {
+    if (!sale.product || (sale.amount === undefined && sale.quantity === undefined) || sale.price === undefined) {
       debugLog('❌ Sale missing required fields:', sale);
-      return null;
+      
+      // Try to fix common issues
+      if (!sale.product && sale.name) {
+        debugLog('⚠️ Using "name" as "product"');
+        sale.product = sale.name;
+      }
+      
+      if (sale.amount === undefined && sale.quantity !== undefined) {
+        debugLog('⚠️ Using "quantity" as "amount"');
+        sale.amount = sale.quantity;
+      }
+      
+      // If still missing required fields after fixes, return null
+      if (!sale.product || sale.amount === undefined || sale.price === undefined) {
+        return null;
+      }
     }
 
     // Ensure numeric fields are numbers
@@ -427,7 +443,7 @@ const validateSaleObject = (sale: any): SaleData | null => {
       totalPrice,
       paymentMethod: sale.paymentMethod || 'Efectivo',
       client: sale.client || 'Cliente',
-      date: sale.date || new Date().toISOString()
+      date: sale.date || new Date().toISOString().split('T')[0]
     };
 
     debugLog('✅ Validated sale object:', validatedSale);
@@ -464,6 +480,19 @@ export const processSaleInput = async (
           previousSales,
           selectedSales
         };
+    
+    // Log detailed information about selectedSales
+    if (selectedSales && selectedSales.length > 0) {
+      debugLog(`Enviando ${selectedSales.length} ventas seleccionadas:`, selectedSales);
+      
+      // Log the details of selected sales if available
+      const selectedSalesDetails = previousSales.filter(sale => selectedSales.includes(sale.id));
+      if (selectedSalesDetails.length > 0) {
+        debugLog('Detalles de ventas seleccionadas:', selectedSalesDetails);
+      } else {
+        debugLog('⚠️ No se encontraron detalles para las ventas seleccionadas con IDs:', selectedSales);
+      }
+    }
     
     debugLog('Enviando datos:', JSON.stringify(requestData).substring(0, 100) + '...');
     
@@ -579,7 +608,8 @@ export const processSaleInput = async (
       ...(parsed.deletedId && { deletedId: parsed.deletedId }),
       ...(parsed.deletedIds && { deletedIds: parsed.deletedIds }),
       ...(parsed.pendingAction && { pendingAction: parsed.pendingAction }),
-      ...(parsed.missingInfo && { missingInfo: parsed.missingInfo })
+      ...(parsed.missingInfo && { missingInfo: parsed.missingInfo }),
+      ...(parsed.suggestion && { suggestion: parsed.suggestion })
     };
   } catch (error) {
     console.error('Error en procesamiento de venta:', error);
