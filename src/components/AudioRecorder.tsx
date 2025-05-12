@@ -368,46 +368,27 @@ export default function AudioRecorder({
         </div>
       ) : (
         <>
-          <motion.button
-            onClick={handleRecordClick}
-            disabled={isProcessing}
-            className={`transition-colors flex items-center justify-center
-              ${isRecording ? 'text-gray-400' : 'text-gray-400 hover:text-gray-300'}
-              ${isProcessing ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-            whileHover={!isProcessing ? { scale: 1.05 } : {}}
-            whileTap={!isProcessing ? { scale: 0.95 } : {}}
-            type="button" // Explicitly set to button to avoid form submission
-          >
-            {isRecording ? (
-              // Square stop icon
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2">
-                <rect x="6" y="6" width="12" height="12" />
-              </svg>
-            ) : (
-              // Microphone icon
+          <div className="relative group">
+            <motion.button
+              // Remove onClick handler to disable functionality
+              // onClick={handleRecordClick}
+              disabled={true}
+              className="transition-colors flex items-center justify-center text-gray-600 cursor-not-allowed opacity-40"
+              type="button"
+            >
+              {/* Microphone icon */}
               <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"></path>
                 <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                 <line x1="12" y1="19" x2="12" y2="22"></line>
               </svg>
-            )}
-          </motion.button>
-          
-          {isRecording && (
-            <div className="ml-1 flex items-center">
-              <div className="relative mr-1">
-                <div className="absolute top-0 right-0 -mr-1 -mt-1">
-                  <span className="flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full rounded-full bg-gray-400/30 opacity-75 animate-ping"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-gray-400/40"></span>
-                  </span>
-                </div>
-              </div>
-              <span className="text-xs text-gray-400/70">
-                {formatTime(recordingDuration)}
-              </span>
+            </motion.button>
+            
+            {/* Tooltip */}
+            <div className="absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black border border-green-800 text-green-400 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              Próximamente
             </div>
-          )}
+          </div>
           
           {isProcessing && (
             <motion.div 
