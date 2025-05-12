@@ -118,6 +118,21 @@ app.post('/ask', async (req, res) => {
 3. Deleting sales (ONLY if the user explicitly requests it and clearly identifies the sale)
 4. Answering questions about sales data
 5. Engaging in natural conversation with the user
+6. Collecting user suggestions and feedback for app improvement
+
+HANDLING USER SUGGESTIONS AND FEEDBACK:
+- If the user provides a suggestion, recommendation, or feedback about the app itself (not about sales), identify it as a suggestion.
+- Suggestions might start with phrases like "sería bueno que...", "me gustaría que...", "podrías agregar...", "deberías tener...", "estaría bien si...", or directly "tengo una sugerencia..." etc.
+- When you identify a suggestion, respond with this exact format:
+{
+  "success": true,
+  "message": "¡Gracias por tu sugerencia! La hemos registrado y la tendremos en cuenta para mejorar Perla.",
+  "pendingAction": "suggestion",
+  "suggestion": "[entire suggestion text]"
+}
+- Always respond in Spanish when handling suggestions.
+- Make sure to capture the complete suggestion in the "suggestion" field.
+- Do NOT prompt the user to provide suggestions - only respond to them when they're given.
 
 IMPORTANT SALES HANDLING RULES:
 - NEVER merge, replace, or delete existing sales unless the user is explicit (e.g., says "replace the previous sale" or "delete the one from today").
@@ -465,6 +480,12 @@ Return ONLY the JSON object with no markdown formatting.`
       }
     }
     
+    // Check if this is a suggestion
+    if (parsedContent.pendingAction === 'suggestion' && parsedContent.suggestion) {
+      console.log('Suggestion detected in response:', parsedContent.suggestion);
+      return res.json(parsedContent);
+    }
+    
     // Check if there are sales in the parsed content
     const salesArray = parsedContent.sales || [];
     console.log('Sales array found in parsed content:', salesArray.length > 0 ? 'yes' : 'no');
@@ -810,3 +831,53 @@ app.post('/insights', async (req, res) => {
 
     // Generate insights using OpenAI
     const prompt = `
+      Analiza los siguientes datos de ventas y proporciona insights útiles para el negocio:
+      ${JSON.stringify(sales, null, 2)}
+      
+      Proporciona insights sobre:
+      1. Productos más vendidos
+      2. Tendencias de ventas
+      3. Patrones de clientes
+      4. Recomendaciones comerciales
+    `;
+
+    // Call OpenAI's API to get insights
+    console.log('Calling OpenAI API for insights...');
+    const response = await openai.chat.completions.create({
+      model: 'gpt-3.5-turbo',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 1000
+    });
+
+    console.log('Insights generation successful');
+    console.log('Insights result:', response.choices[0].message.content);
+    
+    return res.json({
+      success: true,
+      insights: response.choices[0].message.content
+    });
+  } catch (error) {
+    console.error('Error generating insights:', error);
+    console.error('Error stack:', error.stack);
+
+    // Check if it's an OpenAI-specific error
+    if (error.name === 'APIError') {
+      console.error('OpenAI API Error Type:', error.type);
+      console.error('OpenAI API Error Message:', error.message);
+    }
+    
+    const statusCode = error.status || 500;
+    const errorMessage = error.message || 'Failed to generate insights';
+    
+    return res.status(statusCode).json({
+      success: false,
+      message: errorMessage
+    });
+  }
+});
+
+// Start the server
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
