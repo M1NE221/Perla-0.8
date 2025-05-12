@@ -173,10 +173,30 @@ IMPORTANT ABOUT OPTIONAL FIELDS:
 - Allow sales to be saved without client name or payment method if they weren't provided.
 - Only required fields (product, quantity, price) must be present for a valid sale.
 
-When the user asks to UPDATE or DELETE sales, use the selectedSales IDs to perform those operations, but ONLY if the user is explicit and the sale is clearly identified. If not, ask for clarification or do nothing.
+WORKING WITH SELECTED SALES:
+- When the user has selected sales (indicated by a non-empty selectedSales array containing IDs), these are the ONLY sales that should be considered for updates or deletions.
+- The selectedSales IDs are provided to you in a special system message that includes the IDs and details of the selected sales.
+- You will see a message like "ATTENTION: The user has explicitly selected X sale(s)" before the user's actual message.
+- When the user says phrases like "update this sale", "change the price of this", or "delete these sales", ALWAYS use ONLY the selected sales.
+- NEVER ask for sale IDs when sales are already selected. The selection is the user's explicit choice of which sales to modify.
+- If the selectedSales details show that one or more sales are selected, assume any update or delete command refers to these selected sales.
+- When updating sales, ALWAYS return the complete sale object with all fields, not just the updated ones.
+- CRITICAL: When updating, NEVER CHANGE original values for fields not mentioned by the user. Keep everything EXACTLY as it was.
+- NEVER change a product name from one thing to another unless the user explicitly asks to change the product name.
+- If multiple sales are selected but the user's command only makes sense for one sale, use the first selected sale.
+- If selectedSales is empty but the user is explicitly trying to update or delete sales, ask them to select the sales first.
+
+CRITICAL RESPONSE FORMAT REQUIREMENTS:
+- You MUST ALWAYS include the appropriate data structure in your response.
+- For CREATE operations, ALWAYS include the "sale" object or "sales" array with ALL required fields.
+- NEVER return just a success message without the corresponding data structure.
+- The frontend CANNOT display or save sales without the structured data objects.
+- If you understand a sale request, you MUST return the data in the correct format.
+- Failure to include "sale" or "sales" in your response will result in the transaction not being saved.
 
 OPERATIONS AND RESPONSE FORMAT:
 1. CREATE SALE:
+You MUST use this exact format for creating a single sale:
 {
   "success": true,
   "message": "¡Venta registrada! [confirmation details in a tone matching the user's style]",
@@ -186,40 +206,72 @@ OPERATIONS AND RESPONSE FORMAT:
     "amount": [quantity],
     "price": [unit_price],
     "totalPrice": [total_price],
-    "client": "[client_name]",
-    "paymentMethod": "[payment_method]",
-    "date": "[date]"
+    "client": "[client_name or default to 'Cliente']",
+    "paymentMethod": "[payment_method or default to 'Efectivo']",
+    "date": "[date or use today's date]"
+  }
+}
+
+Example for "Vendí 2 bandejas de ravioles de ricota y nuez a 2500 cada una":
+{
+  "success": true,
+  "message": "¡Venta confirmada! Has vendido 2 bandejas de ravioles de ricota y nuez a $2500 cada una.",
+  "sale": {
+    "id": "sale-1234567890",
+    "product": "ravioles de ricota y nuez",
+    "amount": 2,
+    "price": 2500,
+    "totalPrice": 5000,
+    "client": "Cliente",
+    "paymentMethod": "Efectivo", 
+    "date": "2023-05-10"
   }
 }
 
 2. CREATE MULTIPLE SALES:
-When multiple products are mentioned in the same input, respond with:
+When multiple products are mentioned in the same input, you MUST use this exact format:
 {
   "success": true,
   "message": "¡Ventas registradas! [confirmation details in a tone matching the user's style]",
   "sales": [
     {
-      "id": "[generate_unique_id]",
-      "product": "[product_name]",
-      "amount": [quantity],
-      "price": [unit_price],
-      "totalPrice": [total_price],
-      "client": "[client_name]",
-      "paymentMethod": "[payment_method]",
-      "date": "[date]"
+      "id": "[generate_unique_id_1]",
+      "product": "[product_1_name]",
+      "amount": [quantity_1],
+      "price": [unit_price_1],
+      "totalPrice": [total_price_1],
+      "client": "[client_name or default to 'Cliente']",
+      "paymentMethod": "[payment_method or default to 'Efectivo']",
+      "date": "[date or use today's date]"
     },
     {
-      // Next sale with its own details
+      "id": "[generate_unique_id_2]",
+      "product": "[product_2_name]",
+      "amount": [quantity_2],
+      "price": [unit_price_2],
+      "totalPrice": [total_price_2],
+      "client": "[client_name or default to 'Cliente']",
+      "paymentMethod": "[payment_method or default to 'Efectivo']",
+      "date": "[date or use today's date]"
     }
   ]
 }
 
 3. UPDATE SALE(s):
+For updating sales, you MUST use this exact format:
 {
   "success": true,
   "message": "¡Venta actualizada! [confirmation details]",
   "updatedSales": [array_of_updated_sales]
 }
+
+CRITICAL FOR UPDATES:
+- When updating a field, ONLY modify the specific field mentioned by the user
+- ALWAYS preserve all original values for fields that weren't explicitly mentioned
+- When updating a sale, copy ALL original data first, then modify ONLY the requested field
+- DO NOT change product names, quantities, clients, or other fields unless specifically requested
+- If the user says "update the price", only change the price field and keep everything else identical
+- For numeric updates, recalculate totalPrice only if amount or price changes
 
 4. DELETE SALE(s):
 {
@@ -284,6 +336,38 @@ Return ONLY the JSON object with no markdown formatting.`
     
     // Always start with the system prompt
     messageArray.push(perlaSystemPrompt);
+    
+    // Add explicit information about selected sales if present
+    if (selectedSales && selectedSales.length > 0) {
+      console.log(`User has selected ${selectedSales.length} sales with IDs:`, selectedSales);
+      
+      // Get the details of the selected sales from previousSales
+      const selectedSalesDetails = previousSales ? 
+        previousSales.filter(sale => selectedSales.includes(sale.id)) : [];
+      
+      // Create a message that explicitly tells the AI about the selected sales
+      let selectedSalesMessage = {
+        role: 'system',
+        content: `ATTENTION: The user has explicitly selected ${selectedSales.length} sale(s) to operate on.\n\nSelected Sales IDs: ${selectedSales.join(', ')}\n\n`
+      };
+      
+      // Include details of selected sales if available
+      if (selectedSalesDetails.length > 0) {
+        selectedSalesMessage.content += "Details of selected sales:\n";
+        selectedSalesDetails.forEach((sale, index) => {
+          selectedSalesMessage.content += `Sale ${index + 1}: ID=${sale.id}, Product=${sale.product}, Amount=${sale.amount}, Price=${sale.price}, TotalPrice=${sale.totalPrice}, Client=${sale.client || 'Cliente'}\n`;
+        });
+        selectedSalesMessage.content += "\nWhen the user asks to update or delete sales, use ONLY these selected sales.";
+      } else {
+        selectedSalesMessage.content += `WARNING: Sale details for IDs [${selectedSales.join(', ')}] were not found in the provided sales data. Use just the IDs for operations.`;
+      }
+      
+      // Add the explicit selected sales info
+      messageArray.push(selectedSalesMessage);
+      console.log('Added explicit selected sales message to prompt');
+    } else {
+      console.log('No sales selected by user');
+    }
     
     if (prompt) {
       // Handle string prompt (legacy mode)
@@ -385,9 +469,196 @@ Return ONLY the JSON object with no markdown formatting.`
     const salesArray = parsedContent.sales || [];
     console.log('Sales array found in parsed content:', salesArray.length > 0 ? 'yes' : 'no');
     
+    // Validate response structure for sale creation
+    if (parsedContent.success === true && 
+        typeof parsedContent.message === 'string' &&
+        (parsedContent.message.toLowerCase().includes('venta registrada') || 
+         parsedContent.message.toLowerCase().includes('venta confirmada') ||
+         parsedContent.message.toLowerCase().includes('ventas registradas')) && 
+        !parsedContent.sale && 
+        !parsedContent.sales) {
+      
+      console.log('WARNING: Sale creation response missing structured sale data!');
+      
+      // Attempt to extract information from the message
+      const messageText = parsedContent.message;
+      
+      // Try to build a minimal sale object
+      try {
+        // Basic regex matching to try to extract product and quantity
+        // This is a fallback mechanism and won't be perfect
+        const quantityMatch = messageText.match(/(\d+)\s*([a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+)(a|por|en|de)\s*\$?(\d+)/i);
+        
+        if (quantityMatch) {
+          const amount = parseInt(quantityMatch[1], 10);
+          const product = quantityMatch[2].trim();
+          const price = parseInt(quantityMatch[4], 10);
+          const totalPrice = amount * price;
+          
+          console.log('Reconstructed sale from message:', { product, amount, price, totalPrice });
+          
+          // Create a proper sale object
+          parsedContent.sale = {
+            id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            product,
+            amount,
+            price,
+            totalPrice,
+            client: 'Cliente',
+            paymentMethod: 'Efectivo',
+            date: new Date().toISOString().split('T')[0]
+          };
+          
+          console.log('WARNING: Added missing sale object:', parsedContent.sale);
+        } else {
+          console.log('ERROR: Could not extract sale information from message:', messageText);
+        }
+      } catch (extractError) {
+        console.error('Error trying to extract sale information:', extractError);
+      }
+    }
+    
+    // Check for updates that don't properly preserve original data
+    if (parsedContent.success === true && 
+        parsedContent.updatedSales && 
+        Array.isArray(parsedContent.updatedSales) && 
+        parsedContent.updatedSales.length > 0 &&
+        selectedSales && 
+        selectedSales.length > 0 && 
+        previousSales && 
+        previousSales.length > 0) {
+      
+      console.log('Validating update preservation...');
+      
+      // For each updated sale, check if any fields that weren't mentioned in the user's message were changed
+      const updatedSales = parsedContent.updatedSales.map(updatedSale => {
+        // Find the original sale from previousSales
+        const originalSale = previousSales.find(sale => sale.id === updatedSale.id);
+        
+        if (originalSale) {
+          const lastUserMessage = messages[messages.length - 1].content.toLowerCase();
+          
+          // Create a fixed version that preserves all original values except those that were mentioned
+          const fixedSale = { ...originalSale };
+          
+          // Try to identify what the user wanted to change
+          if (lastUserMessage.includes('precio') || lastUserMessage.includes('valor')) {
+            // User wants to change price
+            const priceMatch = lastUserMessage.match(/\b(\d+)/);
+            if (priceMatch) {
+              fixedSale.price = Number(priceMatch[1]);
+              fixedSale.totalPrice = fixedSale.amount * fixedSale.price;
+            }
+          } else if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
+            // User wants to change amount
+            const amountMatch = lastUserMessage.match(/\b(\d+)/);
+            if (amountMatch) {
+              fixedSale.amount = Number(amountMatch[1]);
+              fixedSale.totalPrice = fixedSale.amount * fixedSale.price;
+            }
+          } else if (lastUserMessage.includes('cliente')) {
+            // User wants to change client
+            const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
+            if (clientMatch) {
+              fixedSale.client = clientMatch[1].trim();
+            }
+          } else if (lastUserMessage.includes('producto')) {
+            // User wants to change product
+            const productMatch = lastUserMessage.match(/producto\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
+            if (productMatch) {
+              fixedSale.product = productMatch[1].trim();
+            }
+          }
+          
+          // Log what we're doing
+          if (JSON.stringify(fixedSale) !== JSON.stringify(updatedSale)) {
+            console.log('WARNING: AI changed fields that weren\'t mentioned. Fixing...');
+            console.log('Original sale:', originalSale);
+            console.log('AI\'s updatedSale:', updatedSale);
+            console.log('Fixed sale:', fixedSale);
+            return fixedSale;
+          }
+          
+          return updatedSale;
+        }
+        
+        return updatedSale;
+      });
+      
+      // Replace the updatedSales array with our fixed version
+      parsedContent.updatedSales = updatedSales;
+    }
+    
     // Check if this is a failure response (missing info)
     if (parsedContent.success === false) {
       console.log('Response indicates failure, reason:', parsedContent.message);
+      
+      // Check if the AI is asking for unnecessary clarification despite having selected sales
+      if (selectedSales && selectedSales.length > 0 && 
+          typeof parsedContent.message === 'string' &&
+          (parsedContent.message.toLowerCase().includes('id de la venta') ||
+           parsedContent.message.toLowerCase().includes('cuál es el id') ||
+           parsedContent.message.toLowerCase().includes('qué venta') ||
+           parsedContent.message.toLowerCase().includes('identificar la venta') ||
+           // Add new patterns for unnecessarily asking for quantities/amounts
+           parsedContent.message.toLowerCase().includes('cuántas unidades') ||
+           parsedContent.message.toLowerCase().includes('cuántos') ||
+           parsedContent.message.toLowerCase().includes('qué cantidad') ||
+           parsedContent.message.toLowerCase().includes('cuál es la cantidad'))) {
+        
+        console.log('WARNING: AI is asking for unnecessary clarification despite having selected sales');
+        
+        // Get details for the first selected sale
+        const selectedSale = previousSales ? 
+          previousSales.find(sale => sale.id === selectedSales[0]) : null;
+          
+        if (selectedSale) {
+          console.log('Updating using the first selected sale:', selectedSale);
+          
+          // Extract what value to update from the message
+          let updateField = 'amount';
+          let updateValue = null;
+          
+          // Try to determine what to update based on user message
+          const lastUserMessage = messages[messages.length - 1].content.toLowerCase();
+          
+          if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
+            updateField = 'amount';
+            const amountMatch = lastUserMessage.match(/(\d+)/);
+            if (amountMatch) updateValue = parseInt(amountMatch[1], 10);
+          } else if (lastUserMessage.includes('precio')) {
+            updateField = 'price';
+            const priceMatch = lastUserMessage.match(/(\d+)/);
+            if (priceMatch) updateValue = parseInt(priceMatch[1], 10);
+          } else if (lastUserMessage.includes('cliente')) {
+            updateField = 'client';
+            // Extract client name (anything after "cliente" and before end or punctuation)
+            const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
+            if (clientMatch) updateValue = clientMatch[1].trim();
+          }
+          
+          if (updateValue !== null) {
+            // Create a proper update response
+            const updatedSale = { ...selectedSale };
+            updatedSale[updateField] = updateValue;
+            
+            // Recalculate totalPrice if needed
+            if (updateField === 'amount' || updateField === 'price') {
+              updatedSale.totalPrice = updatedSale.amount * updatedSale.price;
+            }
+            
+            parsedContent = {
+              success: true,
+              message: `¡Venta actualizada! He cambiado el ${updateField === 'amount' ? 'monto' : 
+                                              updateField === 'price' ? 'precio' : 
+                                              updateField === 'client' ? 'cliente' : updateField} a ${updateValue}.`,
+              updatedSales: [updatedSale]
+            };
+            
+            console.log('Auto-corrected response to:', parsedContent);
+          }
+        }
+      }
       
       // Check for pendingAction
       if (parsedContent.pendingAction) {
