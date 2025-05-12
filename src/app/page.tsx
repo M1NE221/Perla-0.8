@@ -355,6 +355,7 @@ export default function Home() {
       currentSalesCount: sales.length,
       selectedSalesCount: selectedSales.length
     });
+    console.log('📋 Estado de chatHistory al iniciar handleSubmit:', chatHistory);
 
     // Guardar la entrada actual para el historial
     const currentInput = input.trim();
@@ -434,10 +435,16 @@ export default function Home() {
       } else {
         // Si no es una clarificación, reiniciar el estado
         console.log('✅ No es una clarificación, reseteando estado de clarificación');
+        console.log('📋 Estado de chatHistory antes de resetear:', chatHistory);
         setConversationHistory([]);
+        setChatHistory([]); // Reset chat history after successful sale
         setPendingClarification(false);
         setClarificationQuestion('');
         setPreviousContext('');
+        // Log después de timeout para verificar que el estado se actualizó
+        setTimeout(() => {
+          console.log('📋 Estado de chatHistory después de resetear:', chatHistory);
+        }, 100);
       }
       
       // Convertir mensaje a string de forma segura para mostrar confirmación
@@ -470,6 +477,14 @@ export default function Home() {
         };
         
         console.log('➕ Añadiendo venta al estado:', newSale);
+        console.log('💾 Estado completo después de la venta:', {
+          pendingClarification,
+          clarificationQuestion,
+          chatHistoryLength: chatHistory.length,
+          conversationHistoryLength: conversationHistory.length,
+          currentSalesCount: sales.length
+        });
+        
         const newSalesArray = [newSale, ...sales];
         setSales(newSalesArray);
         
