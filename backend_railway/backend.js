@@ -542,20 +542,21 @@ Return ONLY the JSON object with no markdown formatting.`
           const fixedSale = { ...originalSale };
           
           // Try to identify what the user wanted to change
-          if (lastUserMessage.includes('precio') || lastUserMessage.includes('valor')) {
-            // User wants to change price
-            const priceMatch = lastUserMessage.match(/\b(\d+)/);
-            if (priceMatch) {
-              fixedSale.price = Number(priceMatch[1]);
-              fixedSale.totalPrice = fixedSale.amount * fixedSale.price;
-            }
-          } else if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
-            // User wants to change amount
-            const amountMatch = lastUserMessage.match(/\b(\d+)/);
-            if (amountMatch) {
-              fixedSale.amount = Number(amountMatch[1]);
-              fixedSale.totalPrice = fixedSale.amount * fixedSale.price;
-            }
+          if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
+            updateField = 'amount';
+            const amountMatch = lastUserMessage.match(/(\d+)/);
+            if (amountMatch) updateValue = parseInt(amountMatch[1], 10);
+            console.log('Detected amount update with value:', updateValue);
+          } else if (lastUserMessage.includes('precio') || 
+                     lastUserMessage.includes('valor') || 
+                     lastUserMessage.includes('cuesta') ||
+                     lastUserMessage.includes('por unidad') ||
+                     lastUserMessage.includes('cada unidad') ||
+                     lastUserMessage.includes('cada uno')) {
+            updateField = 'price';
+            const priceMatch = lastUserMessage.match(/(\d+)/);
+            if (priceMatch) updateValue = parseInt(priceMatch[1], 10);
+            console.log('Detected price update with value:', updateValue);
           } else if (lastUserMessage.includes('cliente')) {
             // User wants to change client
             const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
@@ -599,21 +600,22 @@ Return ONLY the JSON object with no markdown formatting.`
           (parsedContent.message.toLowerCase().includes('id de la venta') ||
            parsedContent.message.toLowerCase().includes('cuál es el id') ||
            parsedContent.message.toLowerCase().includes('qué venta') ||
+           parsedContent.message.toLowerCase().includes('cuál venta') ||
+           parsedContent.message.toLowerCase().includes('que venta') ||
+           parsedContent.message.toLowerCase().includes('cual venta') ||
            parsedContent.message.toLowerCase().includes('identificar la venta') ||
            // Add new patterns for unnecessarily asking for quantities/amounts
            parsedContent.message.toLowerCase().includes('cuántas unidades') ||
            parsedContent.message.toLowerCase().includes('cuántos') ||
            parsedContent.message.toLowerCase().includes('qué cantidad') ||
            parsedContent.message.toLowerCase().includes('cuál es la cantidad') ||
-           // Add common patterns for asking which sale to update/delete
-           parsedContent.message.toLowerCase().includes('cuál venta') ||
-           parsedContent.message.toLowerCase().includes('qué venta') ||
-           parsedContent.message.toLowerCase().includes('cuál producto') ||
-           parsedContent.message.toLowerCase().includes('qué producto') ||
-           parsedContent.message.toLowerCase().includes('especifica') ||
-           parsedContent.message.toLowerCase().includes('proporciona más detalles') ||
-           parsedContent.message.toLowerCase().includes('qué sale') ||
-           parsedContent.message.toLowerCase().includes('cuál sale'))) {
+           // Add new patterns for asking about which specific sale despite selection
+           parsedContent.message.toLowerCase().includes('qué venta específica') ||
+           parsedContent.message.toLowerCase().includes('cuál venta específica') ||
+           parsedContent.message.toLowerCase().includes('qué venta te gustaría') ||
+           parsedContent.message.toLowerCase().includes('cuál venta te gustaría') ||
+           parsedContent.message.toLowerCase().includes('qué venta deseas') ||
+           parsedContent.message.toLowerCase().includes('cuál venta deseas'))) {
         
         console.log('WARNING: AI is asking for unnecessary clarification despite having selected sales');
         
@@ -627,80 +629,76 @@ Return ONLY the JSON object with no markdown formatting.`
           // Try to determine what to update based on user message
           const lastUserMessage = messages[messages.length - 1].content.toLowerCase();
           
-          // Check if this is a delete request
-          if (lastUserMessage.includes('elimin') || 
-              lastUserMessage.includes('borr') || 
-              lastUserMessage.includes('quit') ||
-              lastUserMessage.includes('delet') ||
-              lastUserMessage.includes('remov')) {
+          // First determine if this is a delete operation
+          if (lastUserMessage.includes('eliminar') || 
+              lastUserMessage.includes('borrar') || 
+              lastUserMessage.includes('quitar') ||
+              lastUserMessage.includes('remover')) {
+            console.log('Detected DELETE operation in user message');
             
-            console.log('Detected delete request for selected sale:', selectedSale.id);
-            
+            // Create a proper delete response
             parsedContent = {
               success: true,
-              message: `¡Venta eliminada! He eliminado la venta de ${selectedSale.product}.`,
+              message: `¡Venta eliminada! He eliminado la venta seleccionada.`,
               deletedId: selectedSale.id
             };
             
-            console.log('Auto-corrected to deletion response:', parsedContent);
+            console.log('Auto-corrected response for DELETE operation:', parsedContent);
+            return res.json(parsedContent);
+          }
+          
+          // Otherwise it's an update operation
+          let updateField = 'amount';
+          let updateValue = null;
+          
+          if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
+            updateField = 'amount';
+            const amountMatch = lastUserMessage.match(/(\d+)/);
+            if (amountMatch) updateValue = parseInt(amountMatch[1], 10);
+          } else if (lastUserMessage.includes('precio') || 
+                     lastUserMessage.includes('valor') || 
+                     lastUserMessage.includes('cuesta') ||
+                     lastUserMessage.includes('por unidad') ||
+                     lastUserMessage.includes('cada unidad') ||
+                     lastUserMessage.includes('cada uno')) {
+            updateField = 'price';
+            const priceMatch = lastUserMessage.match(/(\d+)/);
+            if (priceMatch) updateValue = parseInt(priceMatch[1], 10);
+          } else if (lastUserMessage.includes('cliente')) {
+            updateField = 'client';
+            // Extract client name (anything after "cliente" and before end or punctuation)
+            const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
+            if (clientMatch) updateValue = clientMatch[1].trim();
+          }
+          
+          if (updateValue !== null) {
+            // Create a proper update response
+            const updatedSale = { ...selectedSale };
+            updatedSale[updateField] = updateValue;
             
+            // Recalculate totalPrice if needed
+            if (updateField === 'amount' || updateField === 'price') {
+              updatedSale.totalPrice = updatedSale.amount * updatedSale.price;
+            }
+            
+            parsedContent = {
+              success: true,
+              message: `¡Venta actualizada! He cambiado el ${updateField === 'amount' ? 'monto' : 
+                                              updateField === 'price' ? 'precio' : 
+                                              updateField === 'client' ? 'cliente' : updateField} a ${updateValue}.`,
+              updatedSales: [updatedSale]
+            };
+            
+            console.log('Auto-corrected response to:', parsedContent);
           } else {
-            // Handle updates as before
-            let updateField = 'price'; // Default to price as most common update
-            let updateValue = null;
-            
-            if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
-              updateField = 'amount';
-              const amountMatch = lastUserMessage.match(/(\d+)/);
-              if (amountMatch) updateValue = parseInt(amountMatch[1], 10);
-            } else if (lastUserMessage.includes('precio')) {
-              updateField = 'price';
-              const priceMatch = lastUserMessage.match(/(\d+)/);
-              if (priceMatch) updateValue = parseInt(priceMatch[1], 10);
-            } else if (lastUserMessage.includes('cliente')) {
-              updateField = 'client';
-              // Extract client name (anything after "cliente" and before end or punctuation)
-              const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
-              if (clientMatch) updateValue = clientMatch[1].trim();
-            } else {
-              // Try to extract numbers for price as fallback
-              const priceMatch = lastUserMessage.match(/(\d+)/);
-              if (priceMatch) {
-                updateField = 'price';
-                updateValue = parseInt(priceMatch[1], 10);
-              }
-            }
-            
-            if (updateValue !== null) {
-              // Create a proper update response
-              const updatedSale = { ...selectedSale };
-              updatedSale[updateField] = updateValue;
-              
-              // Recalculate totalPrice if needed
-              if (updateField === 'amount' || updateField === 'price') {
-                updatedSale.totalPrice = updatedSale.amount * updatedSale.price;
-              }
-              
-              parsedContent = {
-                success: true,
-                message: `¡Venta actualizada! He cambiado el ${updateField === 'amount' ? 'monto' : 
-                                                updateField === 'price' ? 'precio' : 
-                                                updateField === 'client' ? 'cliente' : updateField} a ${updateValue}.`,
-                updatedSales: [updatedSale]
-              };
-              
-              console.log('Auto-corrected response to:', parsedContent);
-            } else {
-              // If we couldn't extract a specific update value but clearly the user wants to update something
-              // Provide a better message than just asking for clarification
-              console.log('Could not determine specific update value, but user has selected sales');
-              
-              parsedContent = {
-                success: true,
-                message: `Para actualizar la venta de ${selectedSale.product}, por favor específica qué valor deseas cambiar y el nuevo valor. Por ejemplo: "actualiza el precio a 2500" o "cambia la cantidad a 3".`,
-                updatedSales: null
-              };
-            }
+            // If we couldn't determine what to update but there's a selected sale, 
+            // and the AI is asking for clarification, assume the user wants to see the sale details
+            console.log('Could not determine update field and value, returning sale details');
+            parsedContent = {
+              success: true,
+              message: `Aquí está la información de la venta seleccionada: ${selectedSale.product}, cantidad: ${selectedSale.amount}, precio: ${selectedSale.price}, cliente: ${selectedSale.client || 'Cliente'}`,
+              info: { type: 'sale_details', sale: selectedSale }
+            };
           }
         }
       }
@@ -812,174 +810,3 @@ app.post('/insights', async (req, res) => {
 
     // Generate insights using OpenAI
     const prompt = `
-      Analiza los siguientes datos de ventas y proporciona insights útiles para el negocio:
-      ${JSON.stringify(sales, null, 2)}
-      
-      Proporciona insights sobre:
-      1. Productos más vendidos
-      2. Tendencias de ventas
-      3. Patrones de clientes
-      4. Recomendaciones comerciales
-    `;
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
-      messages: [
-        { role: 'system', content: 'Eres un asistente de análisis de ventas experto en identificar patrones e insights útiles.' },
-        { role: 'user', content: prompt }
-      ],
-      max_tokens: 800
-    });
-
-    const insightText = response.choices[0].message.content;
-    console.log('Insights generated successfully');
-    
-    return res.json({
-      success: true,
-      insights: insightText
-    });
-  } catch (error) {
-    console.error('Error generating insights:', error);
-    
-    return res.status(500).json({
-      success: false,
-      message: `Error generando insights: ${error.message}`
-    });
-  }
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  console.log('GET /health received');
-  const healthData = { 
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    openai_api_configured: !!process.env.OPENAI_API_KEY,
-    openai_client_initialized: !!openai,
-    node_env: process.env.NODE_ENV || 'development',
-    port: PORT,
-    api_version: 'v4'
-  };
-  console.log('Health check response:', JSON.stringify(healthData));
-  res.json(healthData);
-});
-
-// Root endpoint - doesn't require OpenAI
-app.get('/', (req, res) => {
-  console.log('GET / received');
-  const response = {
-    service: 'Perla Backend API',
-    status: 'running',
-    openai_status: 'initialized',
-    endpoints: [
-      { path: '/health', method: 'GET', description: 'Health check endpoint' },
-      { path: '/ask', method: 'POST', description: 'OpenAI chat completions API' },
-      { path: '/transcribe', method: 'POST', description: 'Audio transcription API' }
-    ],
-    version: '1.0.0',
-    api_version: 'OpenAI v4'
-  };
-  console.log('Root endpoint response:', JSON.stringify(response));
-  res.json(response);
-});
-
-// Add a catch-all route handler for debugging
-app.use((req, res) => {
-  console.log(`Route not found: ${req.method} ${req.url}`);
-  res.status(404).json({
-    error: 'Not Found',
-    message: `Route ${req.method} ${req.url} not found`,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Express error handler caught:', err);
-  res.status(500).json({
-    error: 'Internal Server Error',
-    message: err.message || 'Something went wrong',
-    timestamp: new Date().toISOString()
-  });
-});
-
-console.log('All routes and middleware setup completed, starting server...');
-
-// Start server
-const server = app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check available at http://localhost:${PORT}/health`);
-  console.log(`Root endpoint available at http://localhost:${PORT}/`);
-  console.log('SERVER IS NOW FULLY OPERATIONAL');
-});
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('UNHANDLED REJECTION! 💥');
-  console.error(err.name, err.message);
-  console.error(err.stack);
-  server.close(() => {
-    process.exit(1);
-  });
-});
-console.log('Unhandled rejection handler registered');
-console.log('========== APPLICATION STARTUP COMPLETE ==========');
-
-// Función auxiliar para procesar y validar objetos de venta
-function processAndValidateSale(sale) {
-  try {
-    if (!sale || typeof sale !== 'object') {
-      console.log('Sale is not an object:', sale);
-      return null;
-    }
-    
-    // Verificar campos obligatorios
-    if (!sale.product || sale.amount === undefined || sale.price === undefined) {
-      console.log('Sale missing required fields:', sale);
-      return null;
-    }
-    
-    // Asegurar que los campos numéricos son realmente números
-    const amount = Number(sale.amount);
-    const price = Number(sale.price);
-    
-    if (isNaN(amount) || isNaN(price)) {
-      console.log('Sale has invalid numeric fields:', { amount, price });
-      return null;
-    }
-    
-    // Calcular totalPrice si no existe
-    const totalPrice = sale.totalPrice !== undefined 
-      ? Number(sale.totalPrice) 
-      : amount * price;
-    
-    if (isNaN(totalPrice)) {
-      console.log('Calculated totalPrice is invalid');
-      return null;
-    }
-    
-    // Asegurar que hay un ID único
-    const id = sale.id || `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-    
-    // Asegurar una fecha válida
-    const date = sale.date || new Date().toISOString().split('T')[0];
-    
-    // Devolver un objeto venta bien formado
-    const validatedSale = {
-      id,
-      product: String(sale.product),
-      amount,
-      price,
-      totalPrice,
-      paymentMethod: sale.paymentMethod || 'Efectivo',
-      client: sale.client || 'Cliente',
-      date
-    };
-    
-    console.log('Validated sale object:', JSON.stringify(validatedSale));
-    return validatedSale;
-  } catch (error) {
-    console.error('Error validating sale:', error);
-    return null;
-  }
-}
