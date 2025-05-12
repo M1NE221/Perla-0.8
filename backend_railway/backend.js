@@ -604,7 +604,16 @@ Return ONLY the JSON object with no markdown formatting.`
            parsedContent.message.toLowerCase().includes('cuántas unidades') ||
            parsedContent.message.toLowerCase().includes('cuántos') ||
            parsedContent.message.toLowerCase().includes('qué cantidad') ||
-           parsedContent.message.toLowerCase().includes('cuál es la cantidad'))) {
+           parsedContent.message.toLowerCase().includes('cuál es la cantidad') ||
+           // Add common patterns for asking which sale to update/delete
+           parsedContent.message.toLowerCase().includes('cuál venta') ||
+           parsedContent.message.toLowerCase().includes('qué venta') ||
+           parsedContent.message.toLowerCase().includes('cuál producto') ||
+           parsedContent.message.toLowerCase().includes('qué producto') ||
+           parsedContent.message.toLowerCase().includes('especifica') ||
+           parsedContent.message.toLowerCase().includes('proporciona más detalles') ||
+           parsedContent.message.toLowerCase().includes('qué sale') ||
+           parsedContent.message.toLowerCase().includes('cuál sale'))) {
         
         console.log('WARNING: AI is asking for unnecessary clarification despite having selected sales');
         
@@ -615,47 +624,83 @@ Return ONLY the JSON object with no markdown formatting.`
         if (selectedSale) {
           console.log('Updating using the first selected sale:', selectedSale);
           
-          // Extract what value to update from the message
-          let updateField = 'amount';
-          let updateValue = null;
-          
           // Try to determine what to update based on user message
           const lastUserMessage = messages[messages.length - 1].content.toLowerCase();
           
-          if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
-            updateField = 'amount';
-            const amountMatch = lastUserMessage.match(/(\d+)/);
-            if (amountMatch) updateValue = parseInt(amountMatch[1], 10);
-          } else if (lastUserMessage.includes('precio')) {
-            updateField = 'price';
-            const priceMatch = lastUserMessage.match(/(\d+)/);
-            if (priceMatch) updateValue = parseInt(priceMatch[1], 10);
-          } else if (lastUserMessage.includes('cliente')) {
-            updateField = 'client';
-            // Extract client name (anything after "cliente" and before end or punctuation)
-            const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
-            if (clientMatch) updateValue = clientMatch[1].trim();
-          }
-          
-          if (updateValue !== null) {
-            // Create a proper update response
-            const updatedSale = { ...selectedSale };
-            updatedSale[updateField] = updateValue;
+          // Check if this is a delete request
+          if (lastUserMessage.includes('elimin') || 
+              lastUserMessage.includes('borr') || 
+              lastUserMessage.includes('quit') ||
+              lastUserMessage.includes('delet') ||
+              lastUserMessage.includes('remov')) {
             
-            // Recalculate totalPrice if needed
-            if (updateField === 'amount' || updateField === 'price') {
-              updatedSale.totalPrice = updatedSale.amount * updatedSale.price;
-            }
+            console.log('Detected delete request for selected sale:', selectedSale.id);
             
             parsedContent = {
               success: true,
-              message: `¡Venta actualizada! He cambiado el ${updateField === 'amount' ? 'monto' : 
-                                              updateField === 'price' ? 'precio' : 
-                                              updateField === 'client' ? 'cliente' : updateField} a ${updateValue}.`,
-              updatedSales: [updatedSale]
+              message: `¡Venta eliminada! He eliminado la venta de ${selectedSale.product}.`,
+              deletedId: selectedSale.id
             };
             
-            console.log('Auto-corrected response to:', parsedContent);
+            console.log('Auto-corrected to deletion response:', parsedContent);
+            
+          } else {
+            // Handle updates as before
+            let updateField = 'price'; // Default to price as most common update
+            let updateValue = null;
+            
+            if (lastUserMessage.includes('monto') || lastUserMessage.includes('cantidad')) {
+              updateField = 'amount';
+              const amountMatch = lastUserMessage.match(/(\d+)/);
+              if (amountMatch) updateValue = parseInt(amountMatch[1], 10);
+            } else if (lastUserMessage.includes('precio')) {
+              updateField = 'price';
+              const priceMatch = lastUserMessage.match(/(\d+)/);
+              if (priceMatch) updateValue = parseInt(priceMatch[1], 10);
+            } else if (lastUserMessage.includes('cliente')) {
+              updateField = 'client';
+              // Extract client name (anything after "cliente" and before end or punctuation)
+              const clientMatch = lastUserMessage.match(/cliente\s+([a-zñáéíóúü\s]+)($|[\.,;\s])/i);
+              if (clientMatch) updateValue = clientMatch[1].trim();
+            } else {
+              // Try to extract numbers for price as fallback
+              const priceMatch = lastUserMessage.match(/(\d+)/);
+              if (priceMatch) {
+                updateField = 'price';
+                updateValue = parseInt(priceMatch[1], 10);
+              }
+            }
+            
+            if (updateValue !== null) {
+              // Create a proper update response
+              const updatedSale = { ...selectedSale };
+              updatedSale[updateField] = updateValue;
+              
+              // Recalculate totalPrice if needed
+              if (updateField === 'amount' || updateField === 'price') {
+                updatedSale.totalPrice = updatedSale.amount * updatedSale.price;
+              }
+              
+              parsedContent = {
+                success: true,
+                message: `¡Venta actualizada! He cambiado el ${updateField === 'amount' ? 'monto' : 
+                                                updateField === 'price' ? 'precio' : 
+                                                updateField === 'client' ? 'cliente' : updateField} a ${updateValue}.`,
+                updatedSales: [updatedSale]
+              };
+              
+              console.log('Auto-corrected response to:', parsedContent);
+            } else {
+              // If we couldn't extract a specific update value but clearly the user wants to update something
+              // Provide a better message than just asking for clarification
+              console.log('Could not determine specific update value, but user has selected sales');
+              
+              parsedContent = {
+                success: true,
+                message: `Para actualizar la venta de ${selectedSale.product}, por favor específica qué valor deseas cambiar y el nuevo valor. Por ejemplo: "actualiza el precio a 2500" o "cambia la cantidad a 3".`,
+                updatedSales: null
+              };
+            }
           }
         }
       }
