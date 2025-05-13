@@ -8,6 +8,7 @@ declare global {
     };
     electronAPI?: {
       platform: string;
+      getAppPath: () => string;
       getRailwayEndpoint: () => string;
     };
   }

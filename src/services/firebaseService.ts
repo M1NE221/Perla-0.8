@@ -17,20 +17,20 @@ import {
 
 // Your Firebase configuration
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  apiKey: "AIzaSyCxrVPojRcdM2_3DsMXZgYWMav_ykjvM5M",
+  authDomain: "perla-77132.firebaseapp.com",
+  projectId: "perla-77132",
+  storageBucket: "perla-77132.firebasestorage.app",
+  messagingSenderId: "65091968649",
+  appId: "1:65091968649:web:3bfe1c2007165bf09c8c0"
 };
 
 // For debugging
 console.log("Firebase config:", {
-  apiKey: typeof process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  hasApiKey: !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  projectId: typeof process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
+  apiKey: firebaseConfig.apiKey,
+  hasApiKey: !!firebaseConfig.apiKey,
+  projectId: firebaseConfig.projectId,
+  hasProjectId: !!firebaseConfig.projectId
 });
 
 // Initialize Firebase

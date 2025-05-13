@@ -431,8 +431,11 @@ const validateSaleObject = (sale: any): SaleData | null => {
       return null;
     }
 
-    // Ensure there's a unique ID
-    const id = sale.id || `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    // Generate a truly unique ID with timestamp and random string
+    // Ensure we never get duplicate IDs by using a more complex pattern
+    const id = sale.id && typeof sale.id === 'string' && sale.id.length > 10
+      ? sale.id  // Keep the ID if it exists and seems valid
+      : `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
     
     // Return a well-formed sale object
     const validatedSale: SaleData = {
@@ -550,6 +553,30 @@ export const processSaleInput = async (
       };
     }
     
+    // Check for success message patterns without sale object
+    if (parsed.success === true && 
+        typeof parsed.message === 'string' && 
+        (parsed.message.toLowerCase().includes('venta registrada') || 
+         parsed.message.toLowerCase().includes('venta creada') ||
+         parsed.message.toLowerCase().includes('ventas registradas')) && 
+        !parsed.sale && 
+        !parsed.sales) {
+      
+      debugLog('WARNING: Sale operation detected in message but missing sale object');
+      
+      // Try to extract sale information from the message
+      const extractResult = extractSaleDataFromMessage(parsed.message);
+      if (extractResult) {
+        debugLog('Successfully extracted sale data from message:', extractResult);
+        
+        if (extractResult.isSingleSale) {
+          parsed.sale = extractResult.sale;
+        } else if (extractResult.isMultipleSales) {
+          parsed.sales = extractResult.sales;
+        }
+      }
+    }
+    
     // In development mode, log the full parsed response
     if (process.env.NODE_ENV !== 'production') {
       debugLog('Parsed response from backend:', parsed);
@@ -593,7 +620,44 @@ export const processSaleInput = async (
         .map((sale: any) => validateSaleObject(sale))
         .filter(Boolean);
       
+      // Ensure all IDs are unique within the validated sales array
+      if (validatedSales.length > 0) {
+        const usedIds = new Set<string>();
+        validatedSales = validatedSales.map((sale: SaleData) => {
+          if (usedIds.has(sale.id)) {
+            // Generate a new unique ID for this duplicate
+            const newId = `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+            return { ...sale, id: newId };
+          }
+          usedIds.add(sale.id);
+          return sale;
+        });
+      }
+      
       console.log(`🛒 ${validatedSales.length} ventas validadas de ${parsed.sales.length} recibidas`);
+    }
+    
+    // Provide a fallback sale object if one should exist but doesn't
+    if (parsed.success && 
+        typeof parsed.message === 'string' && 
+        (parsed.message.toLowerCase().includes('venta registrada') || 
+         parsed.message.toLowerCase().includes('venta creada')) && 
+        !validatedSale && 
+        !validatedSales) {
+      
+      console.warn('Sale message detected but no valid sale object found - creating fallback sale');
+      
+      // Create a basic fallback sale as last resort
+      validatedSale = {
+        id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+        product: "Venta registrada",
+        amount: 1,
+        price: 0,
+        totalPrice: 0,
+        paymentMethod: "Efectivo",
+        client: "Cliente",
+        date: new Date().toISOString().split('T')[0]
+      };
     }
     
     // The backend now returns a clean, standardized response structure
@@ -630,6 +694,84 @@ export const processSaleInput = async (
     };
   }
 };
+
+// Helper function to extract sale data from success messages
+function extractSaleDataFromMessage(message: string): { 
+  isSingleSale: boolean, 
+  isMultipleSales: boolean, 
+  sale?: any,
+  sales?: any[] 
+} | null {
+  if (!message) return null;
+  
+  try {
+    // Simple patterns to detect sale information
+    const singleItemPatterns = [
+      // Pattern for "product for price"
+      /(?:vendido|vendiste|registrado|creado)\s+(?:una|un|la|el)?\s*([a-zñáéíóúü\s]+)\s*(?:por|a)\s*\$?\s*(\d+(?:\.\d+)?)/i,
+      
+      // Pattern for "quantity product at price each"
+      /(?:vendido|vendiste|registrado|creado)\s+(\d+)\s+([a-zñáéíóúü\s]+)\s*(?:por|a)\s*\$?\s*(\d+(?:\.\d+)?)/i,
+      
+      // Pattern for "product at price"
+      /([a-zñáéíóúü\s]+)\s*(?:por|a)\s*\$?\s*(\d+(?:\.\d+)?)/i,
+    ];
+    
+    // Try each pattern for single items
+    for (const pattern of singleItemPatterns) {
+      const match = message.match(pattern);
+      if (match) {
+        // Different handling based on pattern matched
+        if (pattern.toString().includes('quantity product')) {
+          // Pattern for "quantity product at price each"
+          const amount = parseInt(match[1], 10);
+          const product = match[2].trim();
+          const price = parseFloat(match[3]);
+          return {
+            isSingleSale: true,
+            isMultipleSales: false,
+            sale: {
+              id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+              product,
+              amount,
+              price,
+              totalPrice: amount * price,
+              paymentMethod: "Efectivo",
+              client: "Cliente",
+              date: new Date().toISOString().split('T')[0]
+            }
+          };
+        } else if (pattern.toString().includes('product for price')) {
+          // Pattern for "product for price"
+          const product = match[1].trim();
+          const price = parseFloat(match[2]);
+          return {
+            isSingleSale: true,
+            isMultipleSales: false,
+            sale: {
+              id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+              product,
+              amount: 1,
+              price,
+              totalPrice: price,
+              paymentMethod: "Efectivo",
+              client: "Cliente",
+              date: new Date().toISOString().split('T')[0]
+            }
+          };
+        }
+      }
+    }
+    
+    // If no single item matches, it might be multiple items
+    // But we'll keep this simple for now and leave the backend to handle the more complex cases
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting sale data from message:', error);
+    return null;
+  }
+}
 
 // Actualizar la función de insights para usar el endpoint correcto
 export const generateInsights = async (sales: SaleData[]): Promise<string> => {

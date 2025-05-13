@@ -66,7 +66,7 @@ app.use(cors({
 console.log('CORS middleware setup completed');
 
 console.log('Setting up JSON middleware');
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 console.log('JSON middleware setup completed');
 
 // Log every request
@@ -89,6 +89,175 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 console.log('OpenAI client initialized successfully');
+
+// Utility function to generate a unique ID for sales
+const generateUniqueId = () => {
+  return `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+};
+
+// Utility function to ensure sale object has all required fields and a unique ID
+const ensureValidSaleObject = (sale) => {
+  if (!sale) return null;
+  
+  try {
+    // Create a validated sale object with all required fields
+    return {
+      id: sale.id || generateUniqueId(), // Always ensure a unique ID
+      product: sale.product || "Producto sin nombre",
+      amount: typeof sale.amount === 'number' ? sale.amount : 1,
+      price: typeof sale.price === 'number' ? sale.price : 0,
+      totalPrice: typeof sale.totalPrice === 'number' ? sale.totalPrice : (sale.amount || 1) * (sale.price || 0),
+      paymentMethod: sale.paymentMethod || "Efectivo",
+      client: sale.client || "Cliente",
+      date: sale.date || new Date().toISOString().split('T')[0]
+    };
+  } catch (error) {
+    console.error('Error validating sale object:', error);
+    return null;
+  }
+};
+
+// Helper function to extract basic sale information from a success message
+// Used when the API doesn't provide a structured sale object
+const extractSaleFromSuccessMessage = (message) => {
+  if (!message) return null;
+  
+  try {
+    // Basic regex matching for common patterns in success messages
+    const patterns = [
+      // Pattern for "product for price"
+      /(?:vendido|vendiste|registrado|creado)\s+(?:una|un|la|el)?\s*([a-zñáéíóúü\s]+)\s*(?:por|a)\s*\$?\s*(\d+(?:\.\d+)?)/i,
+      
+      // Pattern for "quantity product at price each"
+      /(?:vendido|vendiste|registrado|creado)\s+(\d+)\s+([a-zñáéíóúü\s]+)\s*(?:por|a)\s*\$?\s*(\d+(?:\.\d+)?)/i,
+      
+      // Pattern for "product quantity at price each"
+      /(?:vendido|vendiste|registrado|creado)\s+([a-zñáéíóúü\s]+)\s+(\d+)\s*(?:por|a)\s*\$?\s*(\d+(?:\.\d+)?)/i
+    ];
+    
+    // Try each pattern
+    for (const pattern of patterns) {
+      const match = message.match(pattern);
+      if (match) {
+        // Different handling based on pattern matched
+        if (pattern.toString().includes('quantity product')) {
+          // Pattern for "quantity product at price each"
+          const amount = parseInt(match[1], 10);
+          const product = match[2].trim();
+          const price = parseFloat(match[3]);
+          return {
+            id: generateUniqueId(),
+            product,
+            amount,
+            price,
+            totalPrice: amount * price,
+            paymentMethod: "Efectivo",
+            client: "Cliente",
+            date: new Date().toISOString().split('T')[0]
+          };
+        } else if (pattern.toString().includes('product quantity')) {
+          // Pattern for "product quantity at price each"
+          const product = match[1].trim();
+          const amount = parseInt(match[2], 10);
+          const price = parseFloat(match[3]);
+          return {
+            id: generateUniqueId(),
+            product,
+            amount,
+            price,
+            totalPrice: amount * price,
+            paymentMethod: "Efectivo",
+            client: "Cliente",
+            date: new Date().toISOString().split('T')[0]
+          };
+        } else {
+          // Pattern for "product for price"
+          const product = match[1].trim();
+          const price = parseFloat(match[2]);
+          return {
+            id: generateUniqueId(),
+            product,
+            amount: 1,
+            price,
+            totalPrice: price,
+            paymentMethod: "Efectivo",
+            client: "Cliente",
+            date: new Date().toISOString().split('T')[0]
+          };
+        }
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Error extracting sale from message:', error);
+    return null;
+  }
+};
+
+// Middleware to ensure consistent API response format
+const ensureConsistentResponseFormat = (req, res, next) => {
+  // Store the original res.json function
+  const originalJson = res.json;
+  
+  // Override res.json function
+  res.json = function(data) {
+    // Only process for API responses that indicate success
+    if (data && data.success === true) {
+      const isSaleOperation = data.message && typeof data.message === 'string' && (
+        data.message.toLowerCase().includes('venta') || 
+        data.message.toLowerCase().includes('vendido') ||
+        data.message.toLowerCase().includes('registrado')
+      );
+      
+      // Check if this is a sale operation but missing the sale object
+      if (isSaleOperation && !data.sale && !data.sales) {
+        console.log('Detected successful sale operation without sale object');
+        
+        // Try to extract sale information from the message
+        const extractedSale = extractSaleFromSuccessMessage(data.message);
+        
+        if (extractedSale) {
+          console.log('Successfully extracted sale data from message:', extractedSale);
+          data.sale = extractedSale;
+        } else {
+          console.log('Could not extract sale data, creating placeholder');
+          // Create a minimal placeholder sale as last resort
+          data.sale = {
+            id: generateUniqueId(),
+            product: "Producto de venta",
+            amount: 1,
+            price: 0,
+            totalPrice: 0,
+            paymentMethod: "Efectivo",
+            client: "Cliente",
+            date: new Date().toISOString().split('T')[0]
+          };
+        }
+      }
+      
+      // Ensure all sale objects have valid IDs and required fields
+      if (data.sale) {
+        data.sale = ensureValidSaleObject(data.sale);
+      }
+      
+      // Ensure all sales arrays have valid sale objects
+      if (data.sales && Array.isArray(data.sales)) {
+        data.sales = data.sales
+          .map(sale => ensureValidSaleObject(sale))
+          .filter(sale => sale !== null);
+      }
+    }
+    
+    // Call the original json function with our enhanced data
+    return originalJson.call(this, data);
+  };
+  
+  next();
+};
+
+// Apply the middleware
+app.use(ensureConsistentResponseFormat);
 
 // Routes
 console.log('Setting up application routes');
@@ -232,7 +401,7 @@ Example for "Vendí 2 bandejas de ravioles de ricota y nuez a 2500 cada una":
   "success": true,
   "message": "¡Venta confirmada! Has vendido 2 bandejas de ravioles de ricota y nuez a $2500 cada una.",
   "sale": {
-    "id": "sale-1234567890",
+    "id": "sale-1693847562914-a7b9c5d3e2",
     "product": "ravioles de ricota y nuez",
     "amount": 2,
     "price": 2500,
@@ -518,9 +687,9 @@ Return ONLY the JSON object with no markdown formatting.`
           
           console.log('Reconstructed sale from message:', { product, amount, price, totalPrice });
           
-          // Create a proper sale object
+          // Create a proper sale object with a unique ID (not hardcoded)
           parsedContent.sale = {
-            id: `sale-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+            id: generateUniqueId(),
             product,
             amount,
             price,
