@@ -8,7 +8,8 @@ const nextConfig = {
     unoptimized: true,
   },
   trailingSlash: true,
-  assetPrefix: './',
+  // Only use assetPrefix in production, not in development
+  assetPrefix: process.env.NODE_ENV === 'production' ? './' : '',
 };
 
 module.exports = nextConfig; 

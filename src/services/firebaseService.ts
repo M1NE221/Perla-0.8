@@ -5,22 +5,31 @@ import {
   doc, 
   setDoc, 
   getDoc, 
+  getDocs,
   updateDoc, 
-  serverTimestamp
+  deleteDoc,
+  query,
+  serverTimestamp,
+  deleteField
 } from 'firebase/firestore';
-import { 
-  getAuth, 
-  signInAnonymously, 
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
   onAuthStateChanged,
-  User 
+  setPersistence,
+  browserLocalPersistence,
+  User
 } from 'firebase/auth';
+import { v4 as uuid } from 'uuid';
 
 // Your Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCxrVPojRcdM2_3DsMXZgYWMav_ykjvM5M",
   authDomain: "perla-77132.firebaseapp.com",
   projectId: "perla-77132",
-  storageBucket: "perla-77132.firebasestorage.app",
+  storageBucket: "perla-77132.appspot.com",
   messagingSenderId: "65091968649",
   appId: "1:65091968649:web:3bfe1c2007165bf09c8c0"
 };
@@ -38,208 +47,115 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-// User authentication state
+// Ensure auth state persists across reloads (browserLocalPersistence works in Electron's renderer)
+setPersistence(auth, browserLocalPersistence).catch((err) => {
+  console.error('Error setting Firebase auth persistence:', err);
+});
+
+// Current authenticated user
 let currentUser: User | null = null;
 
-// Function to initialize Firebase authentication and handle auth state changes
-export const initializeFirebase = (): Promise<User | null> => {
-  return new Promise((resolve, reject) => {
-    // Check if we already have a user
-    if (currentUser) {
-      resolve(currentUser);
-      return;
-    }
-
-    // Set up auth state listener
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      unsubscribe(); // Only listen once
-      
-      if (user) {
-        // User is already signed in
-        currentUser = user;
-        console.log("User is already signed in:", user.uid);
-        
-        // Make sure the user document exists
-        try {
-          const userDocRef = doc(db, "usuarios", user.uid);
-          await setDoc(userDocRef, {
-            lastLogin: serverTimestamp(),
-            sales: [] // Initialize with empty array if it doesn't exist
-          }, { merge: true });
-          console.log("Updated user document in Firestore");
-        } catch (error) {
-          console.error("Error ensuring user document exists:", error);
-          // Still resolve with user since auth was successful
-        }
-        
-        resolve(user);
-      } else {
-        // Sign in anonymously
-        try {
-          const userCredential = await signInAnonymously(auth);
-          currentUser = userCredential.user;
-          console.log("Anonymous user signed in:", currentUser.uid);
-          
-          // Create a user document in Firestore
-          try {
-            const userDocRef = doc(db, "usuarios", currentUser.uid);
-            await setDoc(userDocRef, {
-              created: serverTimestamp(),
-              lastLogin: serverTimestamp(),
-              sales: [] // Initialize with empty array
-            }, { merge: true });
-            console.log("Created new user document in Firestore");
-          } catch (firestoreError) {
-            console.error("Error creating user document:", firestoreError);
-            // Still resolve with user since auth was successful
-          }
-          
-          resolve(currentUser);
-        } catch (authError) {
-          console.error("Error signing in anonymously:", authError);
-          reject(authError);
-        }
-      }
-    });
+// Listen to auth state changes (reusable helper)
+export const subscribeToAuthChanges = (callback: (user: User | null) => void): (() => void) => {
+  return onAuthStateChanged(auth, (user) => {
+    currentUser = user;
+    callback(user);
   });
 };
 
-// Get current user
-export const getCurrentUser = (): User | null => {
+// Sign up with email and password
+export const signUpWithEmail = async (email: string, password: string): Promise<User> => {
+  const cred = await createUserWithEmailAndPassword(auth, email, password);
+  currentUser = cred.user;
+
+  // Ensure Firestore user doc exists
+  try {
+    const userDocRef = doc(db, 'usuarios', currentUser.uid);
+    await setDoc(userDocRef, {
+      created: serverTimestamp(),
+      lastLogin: serverTimestamp(),
+      sales: []
+    }, { merge: true });
+  } catch (err) {
+    console.error('Error creating user document:', err);
+  }
   return currentUser;
 };
 
-// Save sales data to Firestore
-export const saveSalesToFirestore = async (sales: any[]): Promise<void> => {
-  if (!currentUser) {
-    console.error("No authenticated user found");
-    return;
-  }
-  
-  try {
-    // Normalize sales data to include all fields, even if empty
-    const normalizedSales = sales.map(sale => ({
-      id: sale.id || `sale-${Date.now()}`,
-      product: sale.product || null,
-      amount: sale.amount || null,
-      price: sale.price || null,
-      totalPrice: sale.totalPrice || null,
-      paymentMethod: sale.paymentMethod || null,
-      client: sale.client || null,
-      date: sale.date || null
-    }));
-    
-    console.log("Normalized sales before saving:", normalizedSales);
-    
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
-    await setDoc(userDocRef, {
-      sales: normalizedSales,
-      lastUpdated: serverTimestamp()
-    }, { merge: true });
-    
-    console.log("Sales data saved to Firestore");
-  } catch (error) {
-    console.error("Error saving sales data to Firestore:", error);
-    throw error;
-  }
+// Sign in with email and password
+export const signInWithEmail = async (email: string, password: string): Promise<User> => {
+  const cred = await signInWithEmailAndPassword(auth, email, password);
+  currentUser = cred.user;
+  return currentUser;
 };
 
-// Load sales data from Firestore
+// Sign out
+export const signOutUser = async (): Promise<void> => {
+  await signOut(auth);
+  currentUser = null;
+};
+
+// Helper to get current user
+export const getCurrentUser = (): User | null => currentUser;
+
+// ========= NEW SALES HELPERS ========= //
+
+// Add OR overwrite a batch of sales (used by legacy callers)
+export const saveSalesToFirestore = async (sales: any[]): Promise<void> => {
+  if (!currentUser) return console.error('No authenticated user found');
+
+  const uid = currentUser.uid;
+  const salesRef = collection(db, 'usuarios', uid, 'sales');
+
+  const ops = sales.map(async (raw) => {
+    const saleId = raw.id ?? uuid();
+    const newSale = {
+      ...raw,
+      id: saleId,
+      totalPrice: raw.totalPrice ?? raw.amount * raw.price,
+      client: raw.client ?? 'Cliente',
+      paymentMethod: raw.paymentMethod ?? 'Efectivo',
+      date: raw.date ?? new Date().toISOString().slice(0, 10),
+      createdAt: raw.createdAt ?? serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+    return setDoc(doc(salesRef, saleId), newSale, { merge: true });
+  });
+
+  await Promise.all(ops);
+};
+
+// Read all sales documents
 export const loadSalesFromFirestore = async (): Promise<any[] | null> => {
   if (!currentUser) {
-    console.error("No authenticated user found");
+    console.error('No authenticated user found');
     return null;
   }
-  
-  try {
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
-    const docSnap = await getDoc(userDocRef);
-    
-    if (docSnap.exists() && docSnap.data().sales) {
-      console.log("Sales data loaded from Firestore");
-      return docSnap.data().sales;
-    } else {
-      console.log("No sales data found in Firestore");
-      return null;
-    }
-  } catch (error) {
-    console.error("Error loading sales data from Firestore:", error);
-    throw error;
-  }
+
+  const uid = currentUser.uid;
+  const q = query(collection(db, 'usuarios', uid, 'sales'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data());
 };
 
-// Update a specific sale in Firestore
+// Update single sale
 export const updateSaleInFirestore = async (updatedSale: any): Promise<void> => {
-  if (!currentUser) {
-    console.error("No authenticated user found");
-    return;
-  }
-  
-  try {
-    // Get current sales array
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
-    const docSnap = await getDoc(userDocRef);
-    
-    if (!docSnap.exists() || !docSnap.data().sales) {
-      console.error("No sales data found for update");
-      return;
-    }
-    
-    // Find and update the specific sale
-    const currentSales = docSnap.data().sales;
-    const updatedSales = currentSales.map((sale: any) => 
-      sale.id === updatedSale.id ? { ...updatedSale } : sale
-    );
-    
-    console.log(`Updating sale with ID: ${updatedSale.id}`);
-    
-    // Save the updated sales array
-    await setDoc(userDocRef, {
-      sales: updatedSales,
-      lastUpdated: serverTimestamp()
-    }, { merge: true });
-    
-    console.log("Sale updated in Firestore");
-  } catch (error) {
-    console.error("Error updating sale in Firestore:", error);
-    throw error;
-  }
+  if (!currentUser) return console.error('No authenticated user found');
+  if (!updatedSale?.id) return console.error('updateSale requires id');
+
+  const saleRef = doc(db, 'usuarios', currentUser.uid, 'sales', updatedSale.id);
+  await updateDoc(saleRef, {
+    ...updatedSale,
+    updatedAt: serverTimestamp(),
+  });
 };
 
-// Delete specific sales from Firestore by ID
+// Delete list of sales IDs
 export const deleteSalesFromFirestore = async (saleIds: string[]): Promise<void> => {
-  if (!currentUser) {
-    console.error("No authenticated user found");
-    return;
-  }
-  
-  try {
-    // Get current sales array
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
-    const docSnap = await getDoc(userDocRef);
-    
-    if (!docSnap.exists() || !docSnap.data().sales) {
-      console.error("No sales data found for deletion");
-      return;
-    }
-    
-    // Filter out the sales to be deleted
-    const currentSales = docSnap.data().sales;
-    const updatedSales = currentSales.filter((sale: any) => !saleIds.includes(sale.id));
-    
-    console.log(`Deleting ${saleIds.length} sales with IDs: ${saleIds.join(', ')}`);
-    
-    // Save the updated sales array
-    await setDoc(userDocRef, {
-      sales: updatedSales,
-      lastUpdated: serverTimestamp()
-    }, { merge: true });
-    
-    console.log("Sales deleted from Firestore");
-  } catch (error) {
-    console.error("Error deleting sales from Firestore:", error);
-    throw error;
-  }
+  if (!currentUser) return console.error('No authenticated user found');
+  const uid = currentUser.uid;
+  const ops = saleIds.map((id) => deleteDoc(doc(db, 'usuarios', uid, 'sales', id)));
+  await Promise.all(ops);
 };
 
 // Save user preferences to Firestore
@@ -330,6 +246,21 @@ export const saveSuggestionToFirestore = async (suggestion: string): Promise<voi
     console.error("Error saving suggestion to Firestore:", error);
     throw error;
   }
+};
+
+// Helper to maintain backward compatibility
+export const initializeFirebase = async (): Promise<User | null> => {
+  return new Promise((resolve) => {
+    if (currentUser) {
+      resolve(currentUser);
+    } else {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        currentUser = user;
+        unsubscribe();
+        resolve(user);
+      });
+    }
+  });
 };
 
 export { db, auth }; 

@@ -1,5 +1,9 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import AuthGate from '@/components/AuthGate';
+import Header from '@/components/Header';
+
+// Global CSS imports should go here
 
 export const metadata: Metadata = {
   title: 'Perla',
@@ -14,7 +18,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <main>{children}</main>
+        <AuthGate>
+          <Header />
+          <main>{children}</main>
+        </AuthGate>
       </body>
     </html>
   );

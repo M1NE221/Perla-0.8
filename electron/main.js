@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, nativeImage, session } = require('electron');
 const path = require('path');
 const isDev = !app.isPackaged;
 const fs = require('fs');
@@ -113,6 +113,26 @@ function createWindow() {
       // Continuar en caso de error
     }
   }
+
+  // Setup proper Content-Security-Policy
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          "default-src 'self'; " +
+          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://perla-backend-production-6e4d.up.railway.app; " +
+          "connect-src 'self' https://perla-backend-production-6e4d.up.railway.app " +
+          "https://*.googleapis.com https://*.firebaseio.com https://firebaseinstallations.googleapis.com " +
+          "https://*.firebase.com https://firebase.googleapis.com wss://*.firebaseio.com; " +
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+          "img-src 'self' data: blob: https://*.googleapis.com; " +
+          "font-src 'self' data: https://fonts.gstatic.com; " +
+          "media-src 'self';"
+        ]
+      }
+    });
+  });
 
   if (isDev) {
     // In development, load from the local dev server

@@ -26,15 +26,16 @@ import { motion, AnimatePresence } from 'framer-motion';
 import AudioRecorder from '@/components/AudioRecorder';
 // Import Firebase service functions
 import { 
-  initializeFirebase, 
   saveSalesToFirestore, 
   loadSalesFromFirestore,
   savePreferencesToFirestore,
   loadPreferencesFromFirestore,
   updateSaleInFirestore,
   deleteSalesFromFirestore,
-  saveSuggestionToFirestore
+  saveSuggestionToFirestore,
 } from '@/services/firebaseService';
+import { useAuth } from '@/components/AuthGate';
+import { requireAuth, auth } from '@/lib/auth';
 
 // Define available fields for customization
 const AVAILABLE_FIELDS = [
@@ -87,14 +88,30 @@ export default function Home() {
   const [isRecordingActive, setIsRecordingActive] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  const { user } = useAuth();
+
+  // One-time email/password sign-in for demo purposes
+  useEffect(() => {
+    (async () => {
+      try {
+        await requireAuth('demo@perla.app', 'superSecret123');
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('✅ Authenticated UID:', auth.currentUser?.uid);
+        }
+      } catch (err: any) {
+        console.error('Auth error', err);
+        alert(
+          `${err?.message ?? err}\nHint: Make sure E-mail/Password provider is enabled in Firebase Console.`
+        );
+      }
+    })();
+  }, []);
+
   // Load saved data from localStorage on component mount
   useEffect(() => {
-    // Initialize Firebase and authenticate anonymously
+    if (!user) return; // ensure user is present
     const setupFirebase = async () => {
       try {
-        const user = await initializeFirebase();
-        console.log('Firebase initialized with user ID:', user?.uid);
-        
         // Load data from Firestore
         const cloudSales = await loadSalesFromFirestore();
         if (cloudSales) {
@@ -219,7 +236,7 @@ export default function Home() {
     };
     
     setupFirebase();
-  }, []);
+  }, [user]);
 
   // Save sales whenever they change
   useEffect(() => {
@@ -662,6 +679,8 @@ export default function Home() {
         }
       }
       
+      // Reset pending clarification since we processed a valid sale action
+      setPendingClarification(false);
       // Reset input after successful processing
       setInput('');
       setIsSubmitting(false);
