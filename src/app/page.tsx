@@ -85,6 +85,7 @@ export default function Home() {
   const [isProcessingAudio, setIsProcessingAudio] = useState(false);
   // Agregar estado para saber si hay una grabación en curso
   const [isRecordingActive, setIsRecordingActive] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Load saved data from localStorage on component mount
   useEffect(() => {
@@ -355,8 +356,9 @@ export default function Home() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     
-    // No procesar si el input está vacío o se está grabando audio
-    if (!input.trim() || isRecordingActive) return;
+    // Evitar múltiples envíos simultáneos o envíos con input vacío / grabación activa
+    if (isSubmitting || !input.trim() || isRecordingActive) return;
+    setIsSubmitting(true);
 
     // DEBUG - Inicio del procesamiento con info del estado actual
     console.log('🔍 handleSubmit - Estado actual:', { 
@@ -367,8 +369,10 @@ export default function Home() {
     });
     console.log('📋 Estado de chatHistory al iniciar handleSubmit:', chatHistory);
 
-    // Guardar la entrada actual para el historial
+    // Copiamos el texto actual y limpiamos de inmediato el campo para que el usuario lo vea vacío
     const currentInput = input.trim();
+    setInput('');
+    // Guardar la entrada actual para el historial
     let newHistory = [...conversationHistory];
     
     // Si estamos en proceso de clarificación, agregar la respuesta al historial
@@ -418,6 +422,7 @@ export default function Home() {
         setPendingClarification(true);
         setClarificationQuestion(result.missingInfo?.question || result.message);
         setChatHistory(messages);
+        setIsSubmitting(false);
         return;
       }
       
@@ -436,6 +441,7 @@ export default function Home() {
         // Reset state for next interaction
         setInput('');
         setChatHistory([]);
+        setIsSubmitting(false);
         return;
       }
       
@@ -478,7 +484,7 @@ export default function Home() {
         });
         
         const newSalesArray = [newSale, ...sales];
-        setSales(newSalesArray);
+        setSales(prev => [newSale, ...prev]);
         
         // Extra logging para verificar que se está ejecutando esta rama de código
         console.log('✅ Venta añadida correctamente, nuevo recuento:', newSalesArray.length);
@@ -498,7 +504,7 @@ export default function Home() {
         
         console.log('➕ Añadiendo múltiples ventas al estado:', newSales);
         const newSalesArray = [...newSales, ...sales];
-        setSales(newSalesArray);
+        setSales(prev => [...newSales, ...prev]);
         
         // Extra logging para verificar que se está ejecutando esta rama de código
         console.log('✅ Múltiples ventas añadidas correctamente, nuevo recuento:', newSalesArray.length);
@@ -643,10 +649,10 @@ export default function Home() {
             
             if (messageJson.sale) {
               console.log('Found sale in parsed message:', messageJson.sale);
-              setSales([messageJson.sale, ...sales]);
+              setSales(prev => [messageJson.sale, ...prev]);
             } else if (messageJson.sales && Array.isArray(messageJson.sales)) {
               console.log('Found sales array in parsed message:', messageJson.sales);
-              setSales([...messageJson.sales, ...sales]);
+              setSales(prev => [...messageJson.sales, ...prev]);
             }
           }
         } catch (e) {
@@ -658,6 +664,7 @@ export default function Home() {
       
       // Reset input after successful processing
       setInput('');
+      setIsSubmitting(false);
       return;
     } else {
       // Handle error case
@@ -691,6 +698,7 @@ export default function Home() {
         // Set confirmation message
         setConfirmation(clarificationMsg);
         console.log('Estado de clarificación configurado, esperando respuesta del usuario');
+        setIsSubmitting(false);
         return;
       }
       
@@ -718,9 +726,11 @@ export default function Home() {
       
       setConfirmation(userFriendlyError);
       console.error('Error en procesamiento:', errorMessage);
+      setIsSubmitting(false);
     }
     // Reset input after processing
     setInput('');
+    setIsSubmitting(false);
   };
   
   // Obtener el nombre legible de un campo
