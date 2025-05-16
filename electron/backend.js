@@ -1,7 +1,40 @@
+// Add polyfills for Windows 7 compatibility
+try {
+  require('core-js/stable');
+  require('regenerator-runtime/runtime');
+} catch (error) {
+  console.log('Polyfills no disponibles, continuando sin ellos:', error.message);
+}
+
 // Integración del servidor Express dentro de Electron
 const path = require('path');
 const fs = require('fs');
 const { app } = require('electron');
+const os = require('os');
+
+// Windows version detection for compatibility
+function getWindowsVersion() {
+  if (process.platform !== 'win32') return null;
+  
+  const release = os.release().split('.');
+  const major = parseInt(release[0], 10);
+  const minor = parseInt(release[1], 10);
+  
+  // Windows 7 is NT 6.1
+  if (major === 6 && minor === 1) {
+    return 'windows7';
+  } else if (major === 6 && minor === 2) {
+    return 'windows8';
+  } else if (major === 6 && minor === 3) {
+    return 'windows8.1';
+  } else if (major >= 10) {
+    return 'windows10+';
+  }
+  return 'unknown';
+}
+
+const winVersion = process.platform === 'win32' ? getWindowsVersion() : null;
+console.log(`Detected Windows version in backend: ${winVersion || 'Not Windows'}`);
 
 // Función para buscar módulos en varias ubicaciones
 function findModule(moduleName) {

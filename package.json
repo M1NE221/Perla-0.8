@@ -5,6 +5,9 @@
   "main": "electron/main.js",
   "author": "Perla Team",
   "description": "A minimalist AI sales tracker",
+  "engines": {
+    "node": ">=14.0.0 <17.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -14,6 +17,7 @@
     "electron:build": "npm run build && electron-builder",
     "package:mac": "next build && electron-builder --mac",
     "package:win": "npm run build && electron-builder --win",
+    "package:win7": "npm run build && cross-env ELECTRON_BUILDER_ALLOW_LEGACY=true ELECTRON_BUILDER_ELECTRON_VERSION=19.1.9 electron-builder --win",
     "package:all": "next build && electron-builder --mac --win",
     "generate-icons": "mkdir -p scripts && node scripts/generate-icons.js",
     "generate-mac-icon": "scripts/generate-mac-icon.sh",
@@ -26,6 +30,7 @@
   },
   "dependencies": {
     "axios": "^1.8.4",
+    "core-js": "^3.30.2",
     "date-fns": "^2.30.0",
     "express-rate-limit": "^7.5.0",
     "firebase": "^11.7.1",
@@ -35,11 +40,13 @@
     "inter-font": "^3.19.0",
     "morgan": "^1.10.0",
     "next": "^14.2.28",
+    "node-fetch": "^2.6.7",
     "openai": "^4.20.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-draggable": "^4.4.5",
     "react-type-animation": "^3.2.0",
+    "regenerator-runtime": "^0.13.11",
     "uuid": "^11.1.0"
   },
   "devDependencies": {
@@ -50,8 +57,8 @@
     "canvas": "^3.1.0",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^28.2.1",
-    "electron-builder": "^24.9.1",
+    "electron": "^19.1.9",
+    "electron-builder": "^23.6.0",
     "electron-serve": "^1.2.0",
     "eslint": "^8.55.0",
     "eslint-config-next": "^14.0.4",
@@ -63,6 +70,7 @@
   "build": {
     "appId": "com.perla.desktop",
     "productName": "Perla",
+    "electronVersion": "19.1.9",
     "files": [
       "out/**/*",
       "electron/**/*",
@@ -79,13 +87,41 @@
     },
     "win": {
       "target": [
-        "nsis",
-        "portable"
+        {
+          "target": "nsis",
+          "arch": ["x64", "ia32"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64", "ia32"]
+        }
       ],
-      "icon": "public/icon.ico"
+      "icon": "public/icon.ico",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": ["es-ES"],
+      "language": "3082",
+      "include": "scripts/windows-installer.nsh",
+      "shortcutName": "Perla (Compatible con Windows 7)"
     },
     "asar": true,
-    "asarUnpack": [],
+    "asarUnpack": [
+      "node_modules/core-js/**/*",
+      "node_modules/regenerator-runtime/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "node_modules/core-js",
+        "to": "app.asar.unpacked/node_modules/core-js"
+      },
+      {
+        "from": "node_modules/regenerator-runtime",
+        "to": "app.asar.unpacked/node_modules/regenerator-runtime"
+      }
+    ],
     "forceCodeSigning": false,
     "npmRebuild": false,
     "buildDependenciesFromSource": true

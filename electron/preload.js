@@ -1,4 +1,13 @@
+// Add polyfills for Windows 7 compatibility
+try {
+  require('core-js/stable');
+  require('regenerator-runtime/runtime');
+} catch (error) {
+  console.log('Polyfills no disponibles, continuando sin ellos:', error.message);
+}
+
 const { contextBridge, ipcRenderer } = require('electron');
+const fetch = require('node-fetch');
 
 // Railway backend endpoint
 const RAILWAY_BACKEND = 'https://perla-backend-production-6e4d.up.railway.app';

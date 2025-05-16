@@ -1,7 +1,72 @@
+// Add polyfills for Windows 7 compatibility
+try {
+  require('core-js/stable');
+  require('regenerator-runtime/runtime');
+} catch (error) {
+  console.log('Polyfills no disponibles, continuando sin ellos:', error.message);
+}
+
 const { app, BrowserWindow, ipcMain, nativeImage, session } = require('electron');
 const path = require('path');
 const isDev = !app.isPackaged;
 const fs = require('fs');
+const os = require('os');
+const fetch = require('node-fetch');
+
+// Enable Windows 7/8/8.1 compatibility mode
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('high-dpi-support', '1');
+  app.commandLine.appendSwitch('force-device-scale-factor', '1');
+}
+
+// Windows version detection for compatibility
+function getWindowsVersion() {
+  if (process.platform !== 'win32') return null;
+  
+  const release = os.release().split('.');
+  const major = parseInt(release[0], 10);
+  const minor = parseInt(release[1], 10);
+  
+  // Windows 7 is NT 6.1
+  if (major === 6 && minor === 1) {
+    return 'windows7';
+  } else if (major === 6 && minor === 2) {
+    return 'windows8';
+  } else if (major === 6 && minor === 3) {
+    return 'windows8.1';
+  } else if (major >= 10) {
+    return 'windows10+';
+  }
+  return 'unknown';
+}
+
+const winVersion = process.platform === 'win32' ? getWindowsVersion() : null;
+console.log(`Detected Windows version: ${winVersion || 'Not Windows'}`);
+
+// Safe memory management function for Windows 7 compatibility
+function safelyDiscardMemory() {
+  if (process.platform === 'win32') {
+    try {
+      // Use getSystemMemoryInfo instead of direct Windows API calls
+      const memInfo = process.getSystemMemoryInfo ? 
+        process.getSystemMemoryInfo() : null;
+      
+      if (memInfo) {
+        console.log(`Memory usage: ${memInfo.total - memInfo.free}/${memInfo.total} MB`);
+      }
+      
+      // For older Windows versions, trigger manual GC
+      if (winVersion === 'windows7' || winVersion === 'windows8') {
+        global.gc && global.gc();
+      }
+    } catch (e) {
+      console.log('Memory API not available, skipping optimization');
+    }
+  }
+}
+
+// Periodically attempt to clean up memory
+setInterval(safelyDiscardMemory, 300000); // Every 5 minutes
 
 // Añadir el directorio de módulos al PATH en producción
 if (!isDev) {
@@ -94,6 +159,39 @@ function createWindow() {
   
   // Create the browser window
   mainWindow = new BrowserWindow(windowOptions);
+
+  // Show a Windows 7 compatibility notification if needed
+  if (process.platform === 'win32' && 
+      (winVersion === 'windows7' || winVersion === 'windows8' || winVersion === 'unknown')) {
+    setTimeout(() => {
+      // Show a notification after window loads
+      mainWindow.webContents.executeJavaScript(`
+        setTimeout(() => {
+          const notification = document.createElement('div');
+          notification.style.position = 'absolute';
+          notification.style.bottom = '10px';
+          notification.style.right = '10px';
+          notification.style.backgroundColor = 'rgba(30, 30, 30, 0.9)';
+          notification.style.color = 'white';
+          notification.style.padding = '10px';
+          notification.style.borderRadius = '5px';
+          notification.style.zIndex = '9999';
+          notification.style.maxWidth = '300px';
+          notification.innerHTML = 'Estás usando una versión antigua de Windows. Si encuentras problemas, usa el acceso directo "Perla (Win7)" en tu escritorio.';
+          document.body.appendChild(notification);
+          
+          // Automatically hide after 10 seconds
+          setTimeout(() => {
+            notification.style.opacity = '0';
+            notification.style.transition = 'opacity 1s';
+            setTimeout(() => {
+              notification.remove();
+            }, 1000);
+          }, 10000);
+        }, 3000);
+      `);
+    }, 5000);
+  }
 
   // Para Windows, intentar establecer el icono de la barra de tareas explícitamente
   if (process.platform === 'win32' && iconPath) {
