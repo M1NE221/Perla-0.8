@@ -35,4 +35,4 @@ ctx.fill();
 const buffer = canvas.toBuffer('image/png');
 fs.writeFileSync(path.join(__dirname, '../public/icon.png'), buffer);
 
-console.log('Pearl icon created at public/icon.png'); 
+console.log('Pearl icon created at public/icon.png');

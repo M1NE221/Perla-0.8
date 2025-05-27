@@ -8,38 +8,38 @@ on:
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
-    - name: Checkout código
-      uses: actions/checkout@v3
-      
-    - name: Configurar Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18.x'
-        cache: 'npm'
-        
-    - name: Instalar dependencias
-      run: npm ci
-      
-    - name: Construir aplicación
-      run: npm run build
-      
-    - name: Crear ejecutable
-      run: npm run package:win
-      
-    - name: Crear GitHub Release
-      id: create_release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: dist/*.exe
-        name: Perla Sales ${{ github.ref_name }}
-        body: |
-          # Perla Sales ${{ github.ref_name }}
-          
-          Nueva versión de Perla Sales.
-          
-          ## Instrucciones de instalación
-          1. Descargue el archivo .exe
-          2. Ejecute el instalador
-          3. Siga las instrucciones en pantalla 
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Construir aplicación
+        run: npm run build
+
+      - name: Crear ejecutable
+        run: npm run package:win
+
+      - name: Crear GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*.exe
+          name: Perla Sales ${{ github.ref_name }}
+          body: |
+            # Perla Sales ${{ github.ref_name }}
+
+            Nueva versión de Perla Sales.
+
+            ## Instrucciones de instalación
+            1. Descargue el archivo .exe
+            2. Ejecute el instalador
+            3. Siga las instrucciones en pantalla

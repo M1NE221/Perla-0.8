@@ -1,16 +1,16 @@
 import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  getDoc, 
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
   getDocs,
-  updateDoc, 
+  updateDoc,
   deleteDoc,
   query,
   serverTimestamp,
-  deleteField
+  deleteField,
 } from 'firebase/firestore';
 import {
   getAuth,
@@ -20,26 +20,26 @@ import {
   onAuthStateChanged,
   setPersistence,
   browserLocalPersistence,
-  User
+  User,
 } from 'firebase/auth';
 import { v4 as uuid } from 'uuid';
 
-// Your Firebase configuration
+// Firebase configuration from environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyCxrVPojRcdM2_3DsMXZgYWMav_ykjvM5M",
-  authDomain: "perla-77132.firebaseapp.com",
-  projectId: "perla-77132",
-  storageBucket: "perla-77132.appspot.com",
-  messagingSenderId: "65091968649",
-  appId: "1:65091968649:web:3bfe1c2007165bf09c8c0"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // For debugging
-console.log("Firebase config:", {
+console.log('Firebase config:', {
   apiKey: firebaseConfig.apiKey,
   hasApiKey: !!firebaseConfig.apiKey,
   projectId: firebaseConfig.projectId,
-  hasProjectId: !!firebaseConfig.projectId
+  hasProjectId: !!firebaseConfig.projectId,
 });
 
 // Initialize Firebase
@@ -56,7 +56,9 @@ setPersistence(auth, browserLocalPersistence).catch((err) => {
 let currentUser: User | null = null;
 
 // Listen to auth state changes (reusable helper)
-export const subscribeToAuthChanges = (callback: (user: User | null) => void): (() => void) => {
+export const subscribeToAuthChanges = (
+  callback: (user: User | null) => void
+): (() => void) => {
   return onAuthStateChanged(auth, (user) => {
     currentUser = user;
     callback(user);
@@ -64,18 +66,25 @@ export const subscribeToAuthChanges = (callback: (user: User | null) => void): (
 };
 
 // Sign up with email and password
-export const signUpWithEmail = async (email: string, password: string): Promise<User> => {
+export const signUpWithEmail = async (
+  email: string,
+  password: string
+): Promise<User> => {
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   currentUser = cred.user;
 
   // Ensure Firestore user doc exists
   try {
     const userDocRef = doc(db, 'usuarios', currentUser.uid);
-    await setDoc(userDocRef, {
-      created: serverTimestamp(),
-      lastLogin: serverTimestamp(),
-      sales: []
-    }, { merge: true });
+    await setDoc(
+      userDocRef,
+      {
+        created: serverTimestamp(),
+        lastLogin: serverTimestamp(),
+        sales: [],
+      },
+      { merge: true }
+    );
   } catch (err) {
     console.error('Error creating user document:', err);
   }
@@ -83,7 +92,10 @@ export const signUpWithEmail = async (email: string, password: string): Promise<
 };
 
 // Sign in with email and password
-export const signInWithEmail = async (email: string, password: string): Promise<User> => {
+export const signInWithEmail = async (
+  email: string,
+  password: string
+): Promise<User> => {
   const cred = await signInWithEmailAndPassword(auth, email, password);
   currentUser = cred.user;
   return currentUser;
@@ -139,7 +151,9 @@ export const loadSalesFromFirestore = async (): Promise<any[] | null> => {
 };
 
 // Update single sale
-export const updateSaleInFirestore = async (updatedSale: any): Promise<void> => {
+export const updateSaleInFirestore = async (
+  updatedSale: any
+): Promise<void> => {
   if (!currentUser) return console.error('No authenticated user found');
   if (!updatedSale?.id) return console.error('updateSale requires id');
 
@@ -151,99 +165,107 @@ export const updateSaleInFirestore = async (updatedSale: any): Promise<void> => 
 };
 
 // Delete list of sales IDs
-export const deleteSalesFromFirestore = async (saleIds: string[]): Promise<void> => {
+export const deleteSalesFromFirestore = async (
+  saleIds: string[]
+): Promise<void> => {
   if (!currentUser) return console.error('No authenticated user found');
   const uid = currentUser.uid;
-  const ops = saleIds.map((id) => deleteDoc(doc(db, 'usuarios', uid, 'sales', id)));
+  const ops = saleIds.map((id) =>
+    deleteDoc(doc(db, 'usuarios', uid, 'sales', id))
+  );
   await Promise.all(ops);
 };
 
 // Save user preferences to Firestore
-export const savePreferencesToFirestore = async (
-  preferences: {
-    activeFields?: any,
-    columnOrder?: any
-  }
-): Promise<void> => {
+export const savePreferencesToFirestore = async (preferences: {
+  activeFields?: any;
+  columnOrder?: any;
+}): Promise<void> => {
   if (!currentUser) {
-    console.error("No authenticated user found");
+    console.error('No authenticated user found');
     return;
   }
-  
+
   try {
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
-    
+    const userDocRef = doc(db, 'usuarios', currentUser.uid);
+
     // Use setDoc with merge option instead of updateDoc to create the document if it doesn't exist
-    await setDoc(userDocRef, {
-      ...preferences,
-      lastUpdated: serverTimestamp()
-    }, { merge: true });
-    
-    console.log("User preferences saved to Firestore");
+    await setDoc(
+      userDocRef,
+      {
+        ...preferences,
+        lastUpdated: serverTimestamp(),
+      },
+      { merge: true }
+    );
+
+    console.log('User preferences saved to Firestore');
   } catch (error) {
-    console.error("Error saving user preferences to Firestore:", error);
+    console.error('Error saving user preferences to Firestore:', error);
     throw error;
   }
 };
 
 // Load user preferences from Firestore
 export const loadPreferencesFromFirestore = async (): Promise<{
-  activeFields?: any,
-  columnOrder?: any
+  activeFields?: any;
+  columnOrder?: any;
 } | null> => {
   if (!currentUser) {
-    console.error("No authenticated user found");
+    console.error('No authenticated user found');
     return null;
   }
-  
+
   try {
-    const userDocRef = doc(db, "usuarios", currentUser.uid);
+    const userDocRef = doc(db, 'usuarios', currentUser.uid);
     const docSnap = await getDoc(userDocRef);
-    
+
     if (docSnap.exists()) {
       const data = docSnap.data();
       const preferences: {
-        activeFields?: any,
-        columnOrder?: any
+        activeFields?: any;
+        columnOrder?: any;
       } = {};
-      
+
       if (data.activeFields) preferences.activeFields = data.activeFields;
       if (data.columnOrder) preferences.columnOrder = data.columnOrder;
-      
-      console.log("User preferences loaded from Firestore");
+
+      console.log('User preferences loaded from Firestore');
       return preferences;
     } else {
-      console.log("No user preferences found in Firestore");
+      console.log('No user preferences found in Firestore');
       return null;
     }
   } catch (error) {
-    console.error("Error loading user preferences from Firestore:", error);
+    console.error('Error loading user preferences from Firestore:', error);
     throw error;
   }
 };
 
 // Save user suggestions to Firestore
-export const saveSuggestionToFirestore = async (suggestion: string): Promise<void> => {
+export const saveSuggestionToFirestore = async (
+  suggestion: string
+): Promise<void> => {
   if (!currentUser) {
-    console.error("No authenticated user found");
+    console.error('No authenticated user found');
     return;
   }
-  
+
   try {
     // Create a new document in the sugerencias collection
-    const suggestionsCollection = collection(db, "sugerencias");
-    
+    const suggestionsCollection = collection(db, 'sugerencias');
+
     // Add the suggestion with user ID and timestamp
     await setDoc(doc(suggestionsCollection), {
       userId: currentUser.uid,
       suggestion,
       createdAt: serverTimestamp(),
-      status: 'new' // Can be 'new', 'reviewed', 'implemented', etc.
+      status: 'new', // Can be 'new', 'reviewed', 'implemented', etc.
     });
-    
-    console.log("User suggestion saved to Firestore");
+
+    console.log('User suggestion saved to Firestore');
   } catch (error) {
-    console.error("Error saving suggestion to Firestore:", error);
+    console.error('Error saving suggestion to Firestore:', error);
     throw error;
   }
 };
@@ -263,4 +285,4 @@ export const initializeFirebase = async (): Promise<User | null> => {
   });
 };
 
-export { db, auth }; 
+export { db, auth };

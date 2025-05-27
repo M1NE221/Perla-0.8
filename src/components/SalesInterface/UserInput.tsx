@@ -9,11 +9,11 @@ interface UserInputProps {
   isProcessing?: boolean;
 }
 
-const UserInput: React.FC<UserInputProps> = ({ 
-  inputValue, 
-  onInputChange, 
-  onSubmit, 
-  isProcessing 
+const UserInput: React.FC<UserInputProps> = ({
+  inputValue,
+  onInputChange,
+  onSubmit,
+  isProcessing,
 }) => {
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -23,7 +23,10 @@ const UserInput: React.FC<UserInputProps> = ({
   };
 
   return (
-    <form onSubmit={handleFormSubmit} className="w-full p-4 bg-white dark:bg-gray-800 shadow-md rounded-lg">
+    <form
+      onSubmit={handleFormSubmit}
+      className="w-full p-4 bg-white dark:bg-gray-800 shadow-md rounded-lg"
+    >
       <div className="flex items-center border-b border-gray-300 dark:border-gray-600 py-2">
         <input
           type="text"
@@ -33,8 +36,8 @@ const UserInput: React.FC<UserInputProps> = ({
           className="appearance-none bg-transparent border-none w-full text-gray-700 dark:text-gray-200 mr-3 py-1 px-2 leading-tight focus:outline-none"
           disabled={isProcessing}
         />
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           className="flex-shrink-0 bg-blue-500 hover:bg-blue-700 border-blue-500 hover:border-blue-700 text-sm border-4 text-white py-1 px-2 rounded disabled:opacity-50"
           disabled={isProcessing}
         >
@@ -49,4 +52,4 @@ const UserInput: React.FC<UserInputProps> = ({
   );
 };
 
-export default UserInput; 
+export default UserInput;

@@ -5,17 +5,14 @@ const RAILWAY_BACKEND = 'https://perla-backend-production-6e4d.up.railway.app';
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
-contextBridge.exposeInMainWorld(
-  'electron',
-  {
-    // API Key management
-    setApiKey: (apiKey) => ipcRenderer.invoke('set-api-key', apiKey),
-    getConfig: () => ipcRenderer.invoke('get-config'),
-    
-    // Add more API methods here as needed for your application
-    platform: process.platform
-  }
-); 
+contextBridge.exposeInMainWorld('electron', {
+  // API Key management
+  setApiKey: (apiKey) => ipcRenderer.invoke('set-api-key', apiKey),
+  getConfig: () => ipcRenderer.invoke('get-config'),
+
+  // Add more API methods here as needed for your application
+  platform: process.platform,
+});
 
 // Expose direct API access to the Railway backend
 contextBridge.exposeInMainWorld('api', {
@@ -33,11 +30,12 @@ contextBridge.exposeInMainWorld('api', {
       console.error('Error calling Perla API:', error);
       return {
         success: false,
-        message: 'Error de conexión con el asistente. Por favor, intenta de nuevo.'
+        message:
+          'Error de conexión con el asistente. Por favor, intenta de nuevo.',
       };
     }
   },
-  
+
   async openai(model, messages) {
     try {
       const response = await fetch(`${RAILWAY_BACKEND}/api/openai`, {
@@ -53,7 +51,7 @@ contextBridge.exposeInMainWorld('api', {
       return { error: 'Error de conexión con OpenAI' };
     }
   },
-  
+
   async getConfig() {
     try {
       const response = await fetch(`${RAILWAY_BACKEND}/api/config`);
@@ -63,7 +61,7 @@ contextBridge.exposeInMainWorld('api', {
       return { hasApiKey: false };
     }
   },
-  
+
   async setConfig(apiKey) {
     try {
       const response = await fetch(`${RAILWAY_BACKEND}/api/config`, {
@@ -78,14 +76,14 @@ contextBridge.exposeInMainWorld('api', {
       console.error('Error setting config:', error);
       return { success: false, message: 'Error al guardar la configuración' };
     }
-  }
+  },
 });
 
 // Provide environment info for the frontend
 contextBridge.exposeInMainWorld('electronAPI', {
   // Basic app information
   platform: process.platform,
-  
+
   // Let frontend know we're using Railway backend
-  getRailwayEndpoint: () => RAILWAY_BACKEND
-}); 
+  getRailwayEndpoint: () => RAILWAY_BACKEND,
+});

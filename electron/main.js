@@ -1,4 +1,10 @@
-const { app, BrowserWindow, ipcMain, nativeImage, session } = require('electron');
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  nativeImage,
+  session,
+} = require('electron');
 const path = require('path');
 const isDev = !app.isPackaged;
 const fs = require('fs');
@@ -9,7 +15,7 @@ if (!isDev) {
   module.paths.push(path.join(extraResourcesPath, 'node_modules'));
   module.paths.push(path.join(app.getAppPath(), 'node_modules'));
   module.paths.push(path.join(process.resourcesPath, 'app.asar/node_modules'));
-  
+
   console.log('Paths de módulos adicionales:');
   console.log(module.paths);
 }
@@ -28,7 +34,7 @@ let mainWindow;
 function setAppIcon() {
   // Try multiple potential icon paths, prioritizing platform-specific formats
   const iconPaths = [];
-  
+
   // Platform-specific icons first
   if (process.platform === 'darwin') {
     iconPaths.push(path.join(__dirname, '../public/perla.icns')); // New macOS icon
@@ -37,14 +43,14 @@ function setAppIcon() {
     iconPaths.push(path.join(__dirname, '../public/perla.ico')); // Nuevo nombre primero
     iconPaths.push(path.join(__dirname, '../public/icon.ico'));
   }
-  
+
   // Then universal formats
   iconPaths.push(path.join(__dirname, '../public/icon-512.png'));
   iconPaths.push(path.join(__dirname, '../public/icon.png'));
-  
+
   let icon = null;
   let iconPath = null;
-  
+
   for (const potentialPath of iconPaths) {
     try {
       if (fs.existsSync(potentialPath)) {
@@ -58,7 +64,7 @@ function setAppIcon() {
       // Continuar con la siguiente ruta
     }
   }
-  
+
   return { icon, iconPath };
 }
 
@@ -66,7 +72,7 @@ function setAppIcon() {
 function createWindow() {
   // Set the app icon
   const { icon, iconPath } = setAppIcon();
-  
+
   // Configuración específica para Windows
   let windowOptions = {
     width: 1200,
@@ -80,7 +86,7 @@ function createWindow() {
     frame: false,
     titleBarStyle: 'hiddenInset',
   };
-  
+
   // Agregar el icono de manera específica según la plataforma
   if (process.platform === 'win32') {
     if (iconPath) {
@@ -91,7 +97,7 @@ function createWindow() {
       windowOptions.icon = icon; // En otras plataformas usamos el objeto nativeImage
     }
   }
-  
+
   // Create the browser window
   mainWindow = new BrowserWindow(windowOptions);
 
@@ -121,16 +127,16 @@ function createWindow() {
         ...details.responseHeaders,
         'Content-Security-Policy': [
           "default-src 'self'; " +
-          "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://perla-backend-production-6e4d.up.railway.app; " +
-          "connect-src 'self' https://perla-backend-production-6e4d.up.railway.app " +
-          "https://*.googleapis.com https://*.firebaseio.com https://firebaseinstallations.googleapis.com " +
-          "https://*.firebase.com https://firebase.googleapis.com wss://*.firebaseio.com; " +
-          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-          "img-src 'self' data: blob: https://*.googleapis.com; " +
-          "font-src 'self' data: https://fonts.gstatic.com; " +
-          "media-src 'self';"
-        ]
-      }
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://perla-backend-production-6e4d.up.railway.app; " +
+            "connect-src 'self' https://perla-backend-production-6e4d.up.railway.app " +
+            'https://*.googleapis.com https://*.firebaseio.com https://firebaseinstallations.googleapis.com ' +
+            'https://*.firebase.com https://firebase.googleapis.com wss://*.firebaseio.com; ' +
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+            "img-src 'self' data: blob: https://*.googleapis.com; " +
+            "font-src 'self' data: https://fonts.gstatic.com; " +
+            "media-src 'self';",
+        ],
+      },
     });
   });
 
@@ -153,23 +159,25 @@ function createWindow() {
 // Cargar la interfaz
 function loadUI() {
   console.log('Cargando la interfaz de usuario...');
-  
+
   // En producción, buscar el archivo index.html
   const indexPath = path.join(__dirname, '../out/index.html');
-  
+
   if (fs.existsSync(indexPath)) {
     mainWindow.loadFile(indexPath);
-    mainWindow.webContents.openDevTools();  // ← esto es temporal para debug
+    mainWindow.webContents.openDevTools(); // ← esto es temporal para debug
   } else {
     // Intentar cargar desde la carpeta raíz como alternativa
     const altPath = path.join(__dirname, '../out/index/index.html');
     if (fs.existsSync(altPath)) {
       mainWindow.loadFile(altPath);
-      mainWindow.webContents.openDevTools();  // ← esto es temporal para debug
+      mainWindow.webContents.openDevTools(); // ← esto es temporal para debug
     } else {
       // Mostrar mensaje de error si no se encuentra el archivo
-      mainWindow.loadURL(`data:text/html,<html><body><h1>Error: No se encontró el archivo index.html</h1><p>La aplicación no puede iniciarse porque faltan archivos necesarios.</p></body></html>`);
-      mainWindow.webContents.openDevTools();  // ← esto es temporal para debug
+      mainWindow.loadURL(
+        `data:text/html,<html><body><h1>Error: No se encontró el archivo index.html</h1><p>La aplicación no puede iniciarse porque faltan archivos necesarios.</p></body></html>`
+      );
+      mainWindow.webContents.openDevTools(); // ← esto es temporal para debug
     }
   }
 }
@@ -177,8 +185,9 @@ function loadUI() {
 // Set up IPC events for API key configuration via the Railway backend
 function setupIPC() {
   // Usar directamente el endpoint de Railway para la configuración de API key
-  const railwayEndpoint = 'https://perla-backend-production-6e4d.up.railway.app';
-  
+  const railwayEndpoint =
+    'https://perla-backend-production-6e4d.up.railway.app';
+
   // Manejar configuración de API key
   ipcMain.handle('set-api-key', async (event, apiKey) => {
     try {
@@ -188,7 +197,7 @@ function setupIPC() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ apiKey }),
       });
-      
+
       const result = await response.json();
       console.log('Resultado de configuración de API key:', result);
       return result;
@@ -197,17 +206,17 @@ function setupIPC() {
       return { success: false, message: 'Error al guardar la API key' };
     }
   });
-  
+
   // Manejar obtención de configuración
   ipcMain.handle('get-config', async () => {
     try {
       console.log('Intentando obtener configuración desde Railway...');
       const response = await fetch(`${railwayEndpoint}/api/config`);
-      
+
       if (!response.ok) {
         throw new Error(`Error HTTP: ${response.status}`);
       }
-      
+
       const config = await response.json();
       return config;
     } catch (error) {
@@ -238,4 +247,4 @@ app.on('activate', () => {
 // Handle app shutdown
 app.on('before-quit', async () => {
   console.log('Aplicación cerrándose...');
-}); 
+});

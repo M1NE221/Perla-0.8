@@ -19,27 +19,29 @@ if (!fs.existsSync(landingInfoDir)) {
 async function main() {
   try {
     console.log(`Preparando ${appName} v${version} para la landing page...`);
-    
+
     // 0. Arreglar el icono para Windows
     console.log('Arreglando el icono para Windows...');
     execSync('node scripts/fix-icon.js', { stdio: 'inherit' });
-    
+
     // 1. Verificar que los iconos existen
     checkIcons();
-    
+
     // 2. Actualizar el archivo package.json para asegurar una compilación correcta
     updatePackageJson();
-    
+
     // 3. Compilar para Windows
     console.log('Compilando para Windows...');
     execSync('npm run package:win', { stdio: 'inherit' });
-    
+
     // 4. Generar información para la landing page
     generateLandingInfo();
-    
+
     console.log('¡Proceso completado con éxito!');
     console.log(`Los ejecutables se encuentran en: ${distDir}`);
-    console.log(`La información para la landing page se encuentra en: ${landingInfoDir}`);
+    console.log(
+      `La información para la landing page se encuentra en: ${landingInfoDir}`
+    );
   } catch (error) {
     console.error('Error durante el proceso de preparación:', error);
     process.exit(1);
@@ -51,11 +53,11 @@ function checkIcons() {
   const requiredIcons = [
     '../public/icon.ico',
     '../public/icon.png',
-    '../public/icon-512.png'
+    '../public/icon-512.png',
   ];
-  
+
   console.log('Verificando iconos...');
-  
+
   for (const iconPath of requiredIcons) {
     const fullPath = path.join(__dirname, iconPath);
     if (!fs.existsSync(fullPath)) {
@@ -63,36 +65,33 @@ function checkIcons() {
       process.exit(1);
     }
   }
-  
+
   console.log('Todos los iconos necesarios están presentes.');
 }
 
 // Actualizar package.json para asegurar una compilación correcta
 function updatePackageJson() {
   console.log('Verificando configuración en package.json...');
-  
+
   const buildConfig = {
     appId: `com.perla.sales`,
     productName: appName,
-    files: [
-      "out/**/*",
-      "electron/**/*"
-    ],
+    files: ['out/**/*', 'electron/**/*'],
     directories: {
-      buildResources: "public",
-      output: "dist"
+      buildResources: 'public',
+      output: 'dist',
     },
     win: {
-      target: "nsis",
-      icon: "public/icon.ico"
-    }
+      target: 'nsis',
+      icon: 'public/icon.ico',
+    },
   };
-  
+
   // Solo actualizar si es necesario
   if (JSON.stringify(packageJson.build) !== JSON.stringify(buildConfig)) {
     console.log('Actualizando configuración de compilación en package.json...');
     packageJson.build = buildConfig;
-    
+
     fs.writeFileSync(
       path.join(__dirname, '../package.json'),
       JSON.stringify(packageJson, null, 2)
@@ -103,22 +102,25 @@ function updatePackageJson() {
 // Generar información para la landing page
 function generateLandingInfo() {
   console.log('Generando información para la landing page...');
-  
+
   // Buscar el archivo exe generado
-  const exeFiles = fs.readdirSync(distDir)
-    .filter(file => file.endsWith('.exe'))
-    .map(file => path.join(distDir, file));
-  
+  const exeFiles = fs
+    .readdirSync(distDir)
+    .filter((file) => file.endsWith('.exe'))
+    .map((file) => path.join(distDir, file));
+
   if (exeFiles.length === 0) {
-    console.error('Error: No se encontró ningún archivo .exe en el directorio dist/');
+    console.error(
+      'Error: No se encontró ningún archivo .exe en el directorio dist/'
+    );
     process.exit(1);
   }
-  
+
   // Obtener estadísticas del archivo
   const exePath = exeFiles[0];
   const exeStats = fs.statSync(exePath);
   const exeSizeInMB = (exeStats.size / (1024 * 1024)).toFixed(2);
-  
+
   // Crear información para la landing page
   const landingInfo = {
     name: appName,
@@ -128,15 +130,16 @@ function generateLandingInfo() {
     sizeInMB: exeSizeInMB,
     releaseDate: new Date().toISOString().split('T')[0],
     downloadUrl: `REPLACE_WITH_ACTUAL_URL/${path.basename(exePath)}`,
-    instructions: "1. Descarga el archivo\n2. Haz doble clic para instalar\n3. Sigue las instrucciones en pantalla"
+    instructions:
+      '1. Descarga el archivo\n2. Haz doble clic para instalar\n3. Sigue las instrucciones en pantalla',
   };
-  
+
   // Guardar la información en un archivo JSON
   fs.writeFileSync(
     path.join(landingInfoDir, 'app-info.json'),
     JSON.stringify(landingInfo, null, 2)
   );
-  
+
   // Crear un HTML de ejemplo para la landing page
   const htmlTemplate = `
 <!DOCTYPE html>
@@ -184,15 +187,17 @@ function generateLandingInfo() {
 </body>
 </html>
   `;
-  
+
   fs.writeFileSync(
     path.join(landingInfoDir, 'download-example.html'),
     htmlTemplate
   );
-  
+
   console.log(`Información generada en: ${landingInfoDir}/app-info.json`);
-  console.log(`Ejemplo HTML generado en: ${landingInfoDir}/download-example.html`);
+  console.log(
+    `Ejemplo HTML generado en: ${landingInfoDir}/download-example.html`
+  );
 }
 
 // Ejecutar el script
-main(); 
+main();

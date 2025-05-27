@@ -4,20 +4,20 @@ import Draggable from 'react-draggable';
 
 interface DraggableFieldProps {
   label: string;
-  initialPosition: { x: number, y: number };
+  initialPosition: { x: number; y: number };
   isActive: boolean;
   onToggleActive: (label: string) => void;
-  onDragStop: (label: string, position: { x: number, y: number }) => void;
+  onDragStop: (label: string, position: { x: number; y: number }) => void;
   fixed?: boolean; // Optional prop to indicate if the field is in a fixed container
 }
 
-const DraggableField = ({ 
-  label, 
-  initialPosition, 
-  isActive, 
+const DraggableField = ({
+  label,
+  initialPosition,
+  isActive,
   onToggleActive,
   onDragStop,
-  fixed = false
+  fixed = false,
 }: DraggableFieldProps) => {
   const [position, setPosition] = useState(initialPosition);
   const [isDragging, setIsDragging] = useState(false);
@@ -31,7 +31,7 @@ const DraggableField = ({
     setIsDragging(true);
   };
 
-  const handleStop = (e: any, data: { x: number, y: number }) => {
+  const handleStop = (e: any, data: { x: number; y: number }) => {
     setIsDragging(false);
     setPosition({ x: data.x, y: data.y });
     onDragStop(label, { x: data.x, y: data.y });
@@ -39,41 +39,45 @@ const DraggableField = ({
 
   // Random slight offset for more organic floating appearance
   const randomOffset = Math.random() * 2;
-  
+
   // Animation configurations
   const animations = {
     initial: { opacity: 0 },
-    animate: { 
+    animate: {
       y: fixed ? 0 : [0, -4 - randomOffset, 0],
       x: fixed ? 0 : [0, randomOffset, 0],
-      opacity: isDragging ? 1 : [0.7, 0.9, 0.7]
+      opacity: isDragging ? 1 : [0.7, 0.9, 0.7],
     },
-    transition: { 
-      duration: 3 + (Math.random() * 2), 
-      ease: "easeInOut", 
+    transition: {
+      duration: 3 + Math.random() * 2,
+      ease: 'easeInOut',
       repeat: Infinity,
-      repeatType: "reverse" as const
+      repeatType: 'reverse' as const,
     },
-    whileHover: { 
-      scale: 1.05, 
+    whileHover: {
+      scale: 1.05,
       opacity: 1,
-      boxShadow: "0 0 8px rgba(74, 222, 128, 0.2)"
+      boxShadow: '0 0 8px rgba(74, 222, 128, 0.2)',
     },
-    whileTap: { 
+    whileTap: {
       scale: 0.95,
-      boxShadow: "0 0 16px rgba(74, 222, 128, 0.3)" 
-    }
+      boxShadow: '0 0 16px rgba(74, 222, 128, 0.3)',
+    },
   };
 
   const fieldContent = (
     <motion.div
       className={`${fixed ? '' : 'absolute'} cursor-move select-none px-4 py-2 rounded-full font-mono text-xs
-                ${isActive 
-                  ? 'text-accent border border-accent/20 bg-background/70 backdrop-blur-sm' 
-                  : 'text-text/50 border border-text/10 bg-background/50 backdrop-blur-sm'}
-                ${isDragging 
-                  ? 'z-50 shadow-lg ring-1 ring-accent/30' 
-                  : 'shadow-sm'}`}
+                ${
+                  isActive
+                    ? 'text-accent border border-accent/20 bg-background/70 backdrop-blur-sm'
+                    : 'text-text/50 border border-text/10 bg-background/50 backdrop-blur-sm'
+                }
+                ${
+                  isDragging
+                    ? 'z-50 shadow-lg ring-1 ring-accent/30'
+                    : 'shadow-sm'
+                }`}
       initial={animations.initial}
       animate={animations.animate}
       transition={animations.transition}
@@ -104,4 +108,4 @@ const DraggableField = ({
   );
 };
 
-export default DraggableField; 
+export default DraggableField;

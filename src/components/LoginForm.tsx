@@ -32,10 +32,20 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-4 text-white" style={{ background: 'rgb(0,0,0)' }}>
-      <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-4 bg-black/40 border border-white/10 p-6 rounded-lg">
-        <h2 className="text-2xl font-semibold text-center mb-2">{isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}</h2>
-        {error && <div className="text-red-400 text-sm text-center">{error}</div>}
+    <div
+      className="flex flex-col items-center justify-center min-h-screen p-4 text-white"
+      style={{ background: 'rgb(0,0,0)' }}
+    >
+      <form
+        onSubmit={handleSubmit}
+        className="w-full max-w-sm space-y-4 bg-black/40 border border-white/10 p-6 rounded-lg"
+      >
+        <h2 className="text-2xl font-semibold text-center mb-2">
+          {isSignUp ? 'Crear cuenta' : 'Iniciar sesión'}
+        </h2>
+        {error && (
+          <div className="text-red-400 text-sm text-center">{error}</div>
+        )}
         <label className="block">
           <span className="text-sm text-gray-300">Email</span>
           <input
@@ -67,14 +77,22 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
           {isSignUp ? (
             <>
               ¿Ya tienes cuenta?{' '}
-              <button type="button" onClick={() => setIsSignUp(false)} className="text-accent hover:underline">
+              <button
+                type="button"
+                onClick={() => setIsSignUp(false)}
+                className="text-accent hover:underline"
+              >
                 Inicia sesión
               </button>
             </>
           ) : (
             <>
               ¿No tienes una cuenta?{' '}
-              <button type="button" onClick={() => setIsSignUp(true)} className="text-accent hover:underline">
+              <button
+                type="button"
+                onClick={() => setIsSignUp(true)}
+                className="text-accent hover:underline"
+              >
                 Regístrate
               </button>
             </>
@@ -83,4 +101,4 @@ export default function LoginForm({ onSuccess }: LoginFormProps) {
       </form>
     </div>
   );
-} 
+}

@@ -1,5 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, updateDoc, doc, deleteField, serverTimestamp, setDoc } from 'firebase/firestore';
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  updateDoc,
+  doc,
+  deleteField,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore';
 import { v4 as uuid } from 'uuid';
 
 // TODO: replace with your env values or import config
@@ -52,4 +61,4 @@ async function migrate() {
 migrate().catch((e) => {
   console.error(e);
   process.exit(1);
-}); 
+});

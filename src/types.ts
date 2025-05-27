@@ -9,4 +9,4 @@ export interface SaleData {
   date: string; // ISO yyyy-MM-dd
   createdAt: any; // Firebase Timestamp
   updatedAt: any;
-} 
+}

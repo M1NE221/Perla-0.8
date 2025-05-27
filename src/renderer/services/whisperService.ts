@@ -25,7 +25,9 @@ interface TranscriptionEvents {
   emit(event: 'end'): boolean;
 }
 
-class TranscriptionEmitter extends EventEmitter implements TranscriptionEvents {}
+class TranscriptionEmitter
+  extends EventEmitter
+  implements TranscriptionEvents {}
 
 // Configuration
 let whisperProcess: ChildProcessWithoutNullStreams | null = null;
@@ -35,20 +37,20 @@ const transcriptionEmitter = new TranscriptionEmitter();
 // Get the correct binary path based on platform
 function getWhisperBinaryPath(): string {
   let platform: string;
-  
+
   // Get platform
   if (typeof window !== 'undefined' && window.electronAPI) {
     platform = window.electronAPI.platform;
   } else {
     platform = os.platform();
   }
-  
+
   // Generate base path - in Electron this will be in frontend/resources
   const resourcePath = 'frontend/resources/whisper';
-  
+
   // Determine executable name based on platform
   let executableName = '';
-  
+
   switch (platform) {
     case 'win32':
       executableName = 'whisper.exe';
@@ -62,13 +64,17 @@ function getWhisperBinaryPath(): string {
     default:
       throw new Error(`Unsupported platform: ${platform}`);
   }
-  
+
   return path.resolve(resourcePath, platform, executableName);
 }
 
 // Helper to get app path in different environments
 function getAppPath(): string {
-  if (typeof window !== 'undefined' && window.electronAPI && window.electronAPI.getAppPath) {
+  if (
+    typeof window !== 'undefined' &&
+    window.electronAPI &&
+    window.electronAPI.getAppPath
+  ) {
     return window.electronAPI.getAppPath();
   }
   return process.cwd();
@@ -78,7 +84,7 @@ function getAppPath(): string {
 function getModelPath(): string {
   // Generate base path - in Electron this will be in frontend/resources
   const resourcePath = 'frontend/resources/whisper';
-  
+
   return path.resolve(resourcePath, 'models', 'small.en.bin');
 }
 
@@ -89,7 +95,7 @@ async function initMicrophoneStream(): Promise<any> {
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error('getUserMedia is not supported in this browser');
     }
-    
+
     // Request audio stream with specific format for whisper.cpp
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: {
@@ -97,22 +103,22 @@ async function initMicrophoneStream(): Promise<any> {
         sampleRate: 16000,
         echoCancellation: true,
         noiseSuppression: true,
-        autoGainControl: true
-      }
+        autoGainControl: true,
+      },
     });
-    
+
     // Create an AudioContext to process the stream
     const audioContext = new AudioContext({ sampleRate: 16000 });
     const source = audioContext.createMediaStreamSource(stream);
-    
+
     // Create a ScriptProcessorNode to access raw audio data
     // Note: ScriptProcessorNode is deprecated but still widely supported
     // In the future, this should be replaced with AudioWorklet
     const processor = audioContext.createScriptProcessor(4096, 1, 1);
-    
+
     source.connect(processor);
     processor.connect(audioContext.destination);
-    
+
     return {
       stream,
       audioContext,
@@ -121,23 +127,26 @@ async function initMicrophoneStream(): Promise<any> {
       getAudioChunk: (callback: (chunk: Int16Array) => void) => {
         processor.onaudioprocess = (e) => {
           const inputData = e.inputBuffer.getChannelData(0);
-          
+
           // Convert Float32Array to Int16Array (required format for whisper.cpp)
           const int16Data = new Int16Array(inputData.length);
           for (let i = 0; i < inputData.length; i++) {
             // Convert float [-1.0, 1.0] to int16 [-32768, 32767]
-            int16Data[i] = Math.min(1, Math.max(-1, inputData[i])) * 32767;
+            const sample = inputData[i];
+            if (sample !== undefined) {
+              int16Data[i] = Math.min(1, Math.max(-1, sample)) * 32767;
+            }
           }
-          
+
           callback(int16Data);
         };
       },
       stop: () => {
         processor.disconnect();
         source.disconnect();
-        stream.getTracks().forEach(track => track.stop());
+        stream.getTracks().forEach((track) => track.stop());
         audioContext.close();
-      }
+      },
     };
   } catch (error) {
     console.error('Error initializing microphone:', error);
@@ -154,42 +163,48 @@ export function startLiveTranscription(): TranscriptionEvents {
   if (whisperProcess) {
     throw new Error('Transcription already running');
   }
-  
+
   try {
     // Start the whisper.cpp process
     const binaryPath = getWhisperBinaryPath();
     const modelPath = getModelPath();
-    
+
     // Start whisper.cpp in streaming mode
     whisperProcess = spawn(binaryPath, [
-      '--model', modelPath,
-      '--language', 'es',
-      '--threads', '4',
-      '--step', '500',
-      '--length', '5000',
-      '--beam-size', '5',
+      '--model',
+      modelPath,
+      '--language',
+      'es',
+      '--threads',
+      '4',
+      '--step',
+      '500',
+      '--length',
+      '5000',
+      '--beam-size',
+      '5',
       '--no-timestamps',
       '--stream',
-      '-'  // Read from stdin
+      '-', // Read from stdin
     ]);
-    
+
     // Handle process errors
     whisperProcess.on('error', (error) => {
       console.error('Error starting whisper.cpp process:', error);
       transcriptionEmitter.emit('error', error);
       stopLiveTranscription();
     });
-    
+
     // Process stdout (transcription text)
     let buffer = '';
     whisperProcess.stdout.on('data', (data) => {
       buffer += data.toString();
-      
+
       // Process complete lines
       if (buffer.includes('\n')) {
         const lines = buffer.split('\n');
         buffer = lines.pop() || ''; // Keep the last incomplete line in the buffer
-        
+
         for (const line of lines) {
           const trimmedLine = line.trim();
           if (trimmedLine && !trimmedLine.startsWith('[')) {
@@ -198,36 +213,38 @@ export function startLiveTranscription(): TranscriptionEvents {
         }
       }
     });
-    
+
     // Process stderr (usually contains progress information)
     whisperProcess.stderr.on('data', (data) => {
       console.log('whisper.cpp stderr:', data.toString());
     });
-    
+
     // Handle process exit
     whisperProcess.on('close', (code) => {
       console.log(`whisper.cpp process exited with code ${code}`);
       transcriptionEmitter.emit('end');
       whisperProcess = null;
     });
-    
+
     // Initialize microphone stream
-    initMicrophoneStream().then((micStream) => {
-      audioStream = micStream;
-      
-      // Send audio chunks to whisper.cpp
-      audioStream.getAudioChunk((chunk: Int16Array) => {
-        if (whisperProcess && whisperProcess.stdin.writable) {
-          // Create buffer from Int16Array
-          const buffer = Buffer.from(chunk.buffer);
-          whisperProcess.stdin.write(buffer);
-        }
+    initMicrophoneStream()
+      .then((micStream) => {
+        audioStream = micStream;
+
+        // Send audio chunks to whisper.cpp
+        audioStream.getAudioChunk((chunk: Int16Array) => {
+          if (whisperProcess && whisperProcess.stdin.writable) {
+            // Create buffer from Int16Array
+            const buffer = Buffer.from(chunk.buffer);
+            whisperProcess.stdin.write(buffer);
+          }
+        });
+      })
+      .catch((error) => {
+        transcriptionEmitter.emit('error', error);
+        stopLiveTranscription();
       });
-    }).catch(error => {
-      transcriptionEmitter.emit('error', error);
-      stopLiveTranscription();
-    });
-    
+
     return transcriptionEmitter;
   } catch (error) {
     console.error('Error in startLiveTranscription:', error);
@@ -245,14 +262,14 @@ export function stopLiveTranscription(): void {
       audioStream.stop();
       audioStream = null;
     }
-    
+
     // Terminate whisper process if running
     if (whisperProcess) {
       // End stdin to signal EOF
       if (whisperProcess.stdin.writable) {
         whisperProcess.stdin.end();
       }
-      
+
       // Give the process a moment to clean up
       setTimeout(() => {
         if (whisperProcess) {
@@ -261,7 +278,7 @@ export function stopLiveTranscription(): void {
         }
       }, 500);
     }
-    
+
     transcriptionEmitter.emit('end');
   } catch (error) {
     console.error('Error stopping live transcription:', error);
@@ -273,13 +290,13 @@ export async function verifyWhisperFiles(): Promise<boolean> {
   try {
     const binaryPath = getWhisperBinaryPath();
     const modelPath = getModelPath();
-    
+
     // Check if binary exists
     await fs.access(binaryPath);
-    
+
     // Check if model exists
     await fs.access(modelPath);
-    
+
     return true;
   } catch (error) {
     console.error('Whisper files verification failed:', error);
@@ -290,5 +307,5 @@ export async function verifyWhisperFiles(): Promise<boolean> {
 export default {
   startLiveTranscription,
   stopLiveTranscription,
-  verifyWhisperFiles
-}; 
+  verifyWhisperFiles,
+};

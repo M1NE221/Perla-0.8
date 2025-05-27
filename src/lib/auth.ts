@@ -1,4 +1,8 @@
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import {
+  getAuth,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+} from 'firebase/auth';
 import { app } from './firebaseClient';
 
 const auth = getAuth(app);
@@ -17,7 +21,10 @@ export async function requireAuth(email: string, password: string) {
     return cred.user;
   } catch (err: any) {
     const code = err?.code as string;
-    if (code === AUTH_ERRORS.InvalidCredential || code === AUTH_ERRORS.UserNotFound) {
+    if (
+      code === AUTH_ERRORS.InvalidCredential ||
+      code === AUTH_ERRORS.UserNotFound
+    ) {
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       return cred.user;
     }
@@ -26,4 +33,4 @@ export async function requireAuth(email: string, password: string) {
   }
 }
 
-export { auth }; 
+export { auth };

@@ -2,55 +2,55 @@ name: Build and Deploy Executable
 
 on:
   push:
-    branches: [ main, master ]  # Ejecutar cuando se hace push a main o master
-    tags: [ 'v*' ]            # O cuando se crea una etiqueta v*
+    branches: [main, master] # Ejecutar cuando se hace push a main o master
+    tags: ['v*'] # O cuando se crea una etiqueta v*
 
 jobs:
   build:
     runs-on: windows-latest
-    
+
     steps:
-    - name: Checkout código
-      uses: actions/checkout@v3
-      
-    - name: Configurar Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18.x'
-        
-    - name: Instalar dependencias
-      run: npm ci
-      
-    - name: Construir aplicación
-      run: npm run build
-      
-    - name: Crear ejecutable
-      run: npm run package:win
-      
-    - name: Subir ejecutable como artefacto
-      uses: actions/upload-artifact@v3
-      with:
-        name: perla-sales-exe
-        path: dist/*.exe
-        
-    # Si tienes permisos para actualizar directamente el repositorio de la landing page:
-    - name: Checkout landing page repo
-      uses: actions/checkout@v3
-      with:
-        repository: M1NE221/LandingPage
-        token: ${{ secrets.LANDING_PAGE_TOKEN }}  # Necesitarás crear este token
-        path: landing-page
-        
-    - name: Copiar ejecutable a landing page
-      run: |
-        mkdir -p landing-page/downloads
-        cp dist/*.exe landing-page/downloads/
-        
-    - name: Commit y push a landing page
-      run: |
-        cd landing-page
-        git config user.name github-actions
-        git config user.email github-actions@github.com
-        git add downloads/*.exe
-        git commit -m "Actualizar ejecutable a la versión ${{ github.ref }}"
-        git push 
+      - name: Checkout código
+        uses: actions/checkout@v3
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18.x'
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Construir aplicación
+        run: npm run build
+
+      - name: Crear ejecutable
+        run: npm run package:win
+
+      - name: Subir ejecutable como artefacto
+        uses: actions/upload-artifact@v3
+        with:
+          name: perla-sales-exe
+          path: dist/*.exe
+
+      # Si tienes permisos para actualizar directamente el repositorio de la landing page:
+      - name: Checkout landing page repo
+        uses: actions/checkout@v3
+        with:
+          repository: M1NE221/LandingPage
+          token: ${{ secrets.LANDING_PAGE_TOKEN }} # Necesitarás crear este token
+          path: landing-page
+
+      - name: Copiar ejecutable a landing page
+        run: |
+          mkdir -p landing-page/downloads
+          cp dist/*.exe landing-page/downloads/
+
+      - name: Commit y push a landing page
+        run: |
+          cd landing-page
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add downloads/*.exe
+          git commit -m "Actualizar ejecutable a la versión ${{ github.ref }}"
+          git push

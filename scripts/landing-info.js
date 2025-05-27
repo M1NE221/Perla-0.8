@@ -19,7 +19,9 @@ console.log('Generando información para la landing page...');
 // Verificar que el ejecutable existe
 if (!fs.existsSync(executablePath)) {
   console.error(`Error: No se encontró el ejecutable en ${executablePath}`);
-  console.error('Por favor, asegúrate de haber ejecutado admin-create-exe.bat primero.');
+  console.error(
+    'Por favor, asegúrate de haber ejecutado admin-create-exe.bat primero.'
+  );
   process.exit(1);
 }
 
@@ -36,7 +38,8 @@ const landingInfo = {
   sizeInMB: exeSizeInMB,
   releaseDate: new Date().toISOString().split('T')[0],
   downloadUrl: `REPLACE_WITH_ACTUAL_URL/${path.basename(executablePath)}`,
-  instructions: "1. Descarga el archivo\n2. Haz doble clic para ejecutar directamente (no requiere instalación)"
+  instructions:
+    '1. Descarga el archivo\n2. Haz doble clic para ejecutar directamente (no requiere instalación)',
 };
 
 // Guardar la información en un archivo JSON
@@ -99,4 +102,6 @@ fs.writeFileSync(
 );
 
 console.log(`Información generada en: ${landingInfoDir}/app-info.json`);
-console.log(`Ejemplo HTML generado en: ${landingInfoDir}/download-example.html`); 
+console.log(
+  `Ejemplo HTML generado en: ${landingInfoDir}/download-example.html`
+);
