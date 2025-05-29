@@ -66,6 +66,7 @@
     "files": [
       "out/**/*",
       "electron/**/*",
+      "electron/firebaseConfig.json",
       "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/tests",
       "!**/*.md",

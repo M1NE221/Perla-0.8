@@ -23,16 +23,7 @@ import {
   User
 } from 'firebase/auth';
 import { v4 as uuid } from 'uuid';
-
-// Your Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCxrVPojRcdM2_3DsMXZgYWMav_ykjvM5M",
-  authDomain: "perla-77132.firebaseapp.com",
-  projectId: "perla-77132",
-  storageBucket: "perla-77132.appspot.com",
-  messagingSenderId: "65091968649",
-  appId: "1:65091968649:web:3bfe1c2007165bf09c8c0"
-};
+import firebaseConfig from '../../electron/firebaseConfig.json';
 
 // For debugging
 console.log("Firebase config:", {
@@ -43,7 +34,7 @@ console.log("Firebase config:", {
 });
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(firebaseConfig as any);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
