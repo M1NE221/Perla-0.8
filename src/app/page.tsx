@@ -35,7 +35,6 @@ import {
   saveSuggestionToFirestore,
 } from '@/services/firebaseService';
 import { useAuth } from '@/components/AuthGate';
-import { requireAuth, auth } from '@/lib/auth';
 
 // Define available fields for customization
 const AVAILABLE_FIELDS = [
@@ -126,23 +125,6 @@ export default function Home() {
       });
     }
   };
-
-  // One-time email/password sign-in for demo purposes
-  useEffect(() => {
-    (async () => {
-      try {
-        await requireAuth('demo@perla.app', 'superSecret123');
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('✅ Authenticated UID:', auth.currentUser?.uid);
-        }
-      } catch (err: any) {
-        console.error('Auth error', err);
-        alert(
-          `${err?.message ?? err}\nHint: Make sure E-mail/Password provider is enabled in Firebase Console.`
-        );
-      }
-    })();
-  }, []);
 
   // Debug logging on component mount
   useEffect(() => {

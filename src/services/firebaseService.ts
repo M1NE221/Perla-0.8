@@ -63,6 +63,7 @@ export const signUpWithEmail = async (email: string, password: string): Promise<
   try {
     const userDocRef = doc(db, 'usuarios', currentUser.uid);
     await setDoc(userDocRef, {
+      email: currentUser.email,
       created: serverTimestamp(),
       lastLogin: serverTimestamp(),
       sales: []
@@ -77,6 +78,17 @@ export const signUpWithEmail = async (email: string, password: string): Promise<
 export const signInWithEmail = async (email: string, password: string): Promise<User> => {
   const cred = await signInWithEmailAndPassword(auth, email, password);
   currentUser = cred.user;
+
+  // Update Firestore user doc (or create if missing)
+  try {
+    const userDocRef = doc(db, 'usuarios', currentUser.uid);
+    await setDoc(userDocRef, {
+      email: currentUser.email,
+      lastLogin: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.error('Error updating user document:', err);
+  }
   return currentUser;
 };
 
