@@ -73,7 +73,98 @@ input::placeholder {
 }
 
 .sales-header {
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  display: grid;
+  gap: 0.25rem;
+}
+
+/* Add explicit grid support fallback */
+@supports not (display: grid) {
+  .sales-header,
+  .sales-row {
+    display: flex;
+    flex-wrap: wrap;
+  }
+  
+  .sales-header > div,
+  .sales-row > div {
+    flex: 1;
+    min-width: 0;
+    padding: 0.25rem;
+  }
+}
+
+/* Ensure consistent grid behavior across browsers */
+.sales-header,
+.sales-row {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Fix for Safari and older browsers */
+.sales-header > div,
+.sales-row > div {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Ensure the grid container maintains consistent sizing */
+.sales-table-container {
+  width: 100%;
+  overflow-x: auto;
+  min-height: fit-content;
+}
+
+/* Responsive adjustments for better cross-browser compatibility */
+@media (max-width: 768px) {
+  .sales-header,
+  .sales-row {
+    font-size: 0.75rem;
+    gap: 0.125rem;
+  }
+  
+  .sales-header > div,
+  .sales-row > div {
+    padding: 0.125rem;
+    min-width: 60px;
+  }
+}
+
+@media (max-width: 480px) {
+  .sales-header,
+  .sales-row {
+    font-size: 0.7rem;
+    gap: 0.1rem;
+  }
+  
+  .sales-header > div,
+  .sales-row > div {
+    padding: 0.1rem;
+    min-width: 50px;
+  }
+}
+
+/* Force consistent box-sizing for all browsers */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Ensure consistent rendering across different browsers */
+.sales-header,
+.sales-row {
+  -webkit-box-sizing: border-box;
+  -moz-box-sizing: border-box;
+  box-sizing: border-box;
+  align-items: stretch;
+}
+
+/* Fix for potential layout jumping in Safari */
+.sales-table-container {
+  -webkit-overflow-scrolling: touch;
+  transform: translateZ(0);
 }
 
 /* Style for the sales rows */

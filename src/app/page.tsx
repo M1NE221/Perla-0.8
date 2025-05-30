@@ -65,10 +65,6 @@ export default function Home() {
   const [isAIInitialized, setIsAIInitialized] = useState(true); // Always initialized by default
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null);
-  // Add selected sales state
-  const [selectedSales, setSelectedSales] = useState<string[]>([]);
-  // Add selection mode state
-  const [selectionMode, setSelectionMode] = useState<boolean>(false);
   
   // Estado para el manejo de clarificaciones
   const [pendingClarification, setPendingClarification] = useState(false);
@@ -90,6 +86,47 @@ export default function Home() {
   
   const { user } = useAuth();
 
+  // Add a function to validate and clean sales data
+  const validateAndCleanSalesData = (salesData: SaleData[]): SaleData[] => {
+    return salesData
+      .filter(sale => sale && sale.id) // Remove null/undefined sales and those without IDs
+      .map(sale => ({
+        ...sale,
+        id: sale.id || `sale-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`,
+        product: sale.product || '-',
+        amount: typeof sale.amount === 'number' ? sale.amount : (parseFloat(String(sale.amount)) || 0),
+        price: typeof sale.price === 'number' ? sale.price : (parseFloat(String(sale.price)) || 0),
+        totalPrice: typeof sale.totalPrice === 'number' ? sale.totalPrice : (parseFloat(String(sale.totalPrice)) || 0),
+        paymentMethod: sale.paymentMethod || 'Efectivo',
+        client: sale.client || 'Anónimo',
+        date: sale.date || new Date().toISOString().split('T')[0]
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Sort by date, newest first
+  };
+
+  // Debug utility to log browser and layout information
+  const logDebugInfo = () => {
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('🔍 Debug Info:', {
+        userAgent: navigator.userAgent,
+        platform: navigator.platform,
+        language: navigator.language,
+        cookieEnabled: navigator.cookieEnabled,
+        onLine: navigator.onLine,
+        screenWidth: screen.width,
+        screenHeight: screen.height,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        devicePixelRatio: window.devicePixelRatio,
+        activeFields: activeFields,
+        columnOrder: columnOrder,
+        salesCount: sales.length,
+        gridSupport: CSS.supports('display', 'grid'),
+        flexboxSupport: CSS.supports('display', 'flex')
+      });
+    }
+  };
+
   // One-time email/password sign-in for demo purposes
   useEffect(() => {
     (async () => {
@@ -107,6 +144,11 @@ export default function Home() {
     })();
   }, []);
 
+  // Debug logging on component mount
+  useEffect(() => {
+    logDebugInfo();
+  }, []);
+
   // Load saved data from localStorage on component mount
   useEffect(() => {
     if (!user) return; // ensure user is present
@@ -116,14 +158,14 @@ export default function Home() {
         const cloudSales = await loadSalesFromFirestore();
         if (cloudSales) {
           console.log('Loaded sales data from Firestore');
-          setSales(cloudSales);
+          setSales(validateAndCleanSalesData(cloudSales));
         } else {
           // Fall back to localStorage if no cloud data
           const savedSales = localStorage.getItem('sales');
           if (savedSales) {
             try {
               const parsedSales = JSON.parse(savedSales);
-              setSales(parsedSales);
+              setSales(validateAndCleanSalesData(parsedSales));
               // Upload local data to Firestore for future use
               saveSalesToFirestore(parsedSales).catch(err => 
                 console.error('Error syncing local sales to Firestore:', err)
@@ -279,40 +321,6 @@ export default function Home() {
     );
   }, [columnOrder]);
 
-  // Toggle selection mode
-  const toggleSelectionMode = () => {
-    if (selectionMode) {
-      // Clear selections when exiting selection mode
-      setSelectedSales([]);
-    }
-    setSelectionMode(prev => !prev);
-  };
-  
-  // Toggle selection of a sale
-  const toggleSaleSelection = (id: string) => {
-    setSelectedSales(prev => {
-      const wasSelected = prev.includes(id);
-      const newSelectedSales = wasSelected 
-        ? prev.filter(saleId => saleId !== id) 
-        : [...prev, id];
-      
-      console.log(`${wasSelected ? '🔳 Deseleccionando' : '☑️ Seleccionando'} venta con ID: ${id}`);
-      console.log('ℹ️ Total seleccionadas:', newSelectedSales.length);
-      
-      return newSelectedSales;
-    });
-  };
-  
-  // Select all visible sales
-  const selectAllSales = () => {
-    setSelectedSales(sales.map(sale => sale.id));
-  };
-  
-  // Clear all selections
-  const clearSelections = () => {
-    setSelectedSales([]);
-  };
-  
   // Toggle a field in the active fields list
   const toggleField = (key: string) => {
     if (activeFields.includes(key)) {
@@ -382,7 +390,6 @@ export default function Home() {
       pendingClarification, 
       inputLength: input.length,
       currentSalesCount: sales.length,
-      selectedSalesCount: selectedSales.length
     });
     console.log('📋 Estado de chatHistory al iniciar handleSubmit:', chatHistory);
 
@@ -417,13 +424,12 @@ export default function Home() {
       : [newUserMessage];
     
     console.log('📤 Enviando mensajes al backend:', JSON.stringify(messages));
-    console.log('🔍 Ventas seleccionadas:', selectedSales);
     
     // Process input through AI with messages array
     const result = await processSaleInput(
       messages as { role: 'user' | 'assistant', content: string }[], 
-      sales, 
-      selectedSales
+      sales,
+      [] // Empty array since we removed selection mode
     );
     
     console.log('📥 Respuesta recibida del backend:', result);
@@ -501,7 +507,7 @@ export default function Home() {
         });
         
         const newSalesArray = [newSale, ...sales];
-        setSales(prev => [newSale, ...prev]);
+        setSales(prev => validateAndCleanSalesData([newSale, ...prev]));
         
         // Extra logging para verificar que se está ejecutando esta rama de código
         console.log('✅ Venta añadida correctamente, nuevo recuento:', newSalesArray.length);
@@ -509,6 +515,13 @@ export default function Home() {
         setTimeout(() => {
           console.log('🔄 Verificación después de timeout, conteo de ventas:', sales.length);
         }, 100);
+
+        // Save single sale to cloud
+        try {
+          await saveSalesToFirestore([newSale]);
+        } catch (err) {
+          console.error('Error saving sale to Firestore:', err);
+        }
       } else if (result.sales && Array.isArray(result.sales)) {
         // Multiple products in one transaction
         console.log('📝 Múltiples ventas encontradas:', result.sales);
@@ -521,7 +534,7 @@ export default function Home() {
         
         console.log('➕ Añadiendo múltiples ventas al estado:', newSales);
         const newSalesArray = [...newSales, ...sales];
-        setSales(prev => [...newSales, ...prev]);
+        setSales(prev => validateAndCleanSalesData([...newSales, ...prev]));
         
         // Extra logging para verificar que se está ejecutando esta rama de código
         console.log('✅ Múltiples ventas añadidas correctamente, nuevo recuento:', newSalesArray.length);
@@ -529,61 +542,43 @@ export default function Home() {
         setTimeout(() => {
           console.log('🔄 Verificación después de timeout, conteo de ventas:', sales.length);
         }, 100);
+
+        // Save multiple sales to cloud
+        try {
+          await saveSalesToFirestore(newSales);
+        } catch (err) {
+          console.error('Error saving sales to Firestore:', err);
+        }
       } else if (result.updatedSales) {
         // Update or delete operation that returns the full updated list
-        console.log('✏️ Actualizando ventas:', result.updatedSales);
+        setSales(validateAndCleanSalesData(result.updatedSales));
         
-        // Get what changed by comparing with current sales
-        const updatedSaleIds = result.updatedSales
-          .filter(updatedSale => {
-            const originalSale = sales.find(s => s.id === updatedSale.id);
-            // Return true if this sale exists and has been modified
-            return originalSale && JSON.stringify(originalSale) !== JSON.stringify(updatedSale);
-          })
-          .map(sale => sale.id);
-        
-        if (updatedSaleIds.length > 0) {
-          console.log('✅ Ventas modificadas con IDs:', updatedSaleIds);
-          
-          // For each updated sale, call updateSaleInFirestore
-          const updatePromises = result.updatedSales
-            .filter(sale => updatedSaleIds.includes(sale.id))
-            .map(sale => updateSaleInFirestore(sale));
-          
-          // Wait for all updates to complete
-          Promise.all(updatePromises).catch(err => 
-            console.error('Error updating sales in Firestore:', err)
-          );
+        // Save the updated sales list to the cloud
+        try {
+          await saveSalesToFirestore(result.updatedSales);
+        } catch (err) {
+          console.error('Error saving updated sales to Firestore:', err);
         }
-        
-        // Update state with the new sales list
-        setSales(result.updatedSales);
-        // Clear selections after successful bulk operation
-        setSelectedSales([]);
       } else if (result.deletedId) {
-        // Delete operation that returns just the ID to remove
-        console.log('🗑️ Eliminando venta con ID:', result.deletedId);
+        // Single sale deletion
+        setSales(prevSales => validateAndCleanSalesData(prevSales.filter(sale => sale.id !== result.deletedId)));
         
-        // Update Firebase using the specific delete function
-        deleteSalesFromFirestore([result.deletedId]).catch(err => 
-          console.error('Error deleting sale from Firestore:', err)
-        );
+        // Remove from cloud
+        try {
+          await deleteSalesFromFirestore([result.deletedId]);
+        } catch (err) {
+          console.error('Error deleting sale from Firestore:', err);
+        }
+      } else if (result.deletedIds && Array.isArray(result.deletedIds)) {
+        // Multiple sales deletion
+        setSales(prevSales => validateAndCleanSalesData(prevSales.filter(sale => !result.deletedIds?.includes(sale.id))));
         
-        // Update local state
-        setSales(prevSales => prevSales.filter(sale => sale.id !== result.deletedId));
-      } else if (result.deletedIds) {
-        // Bulk delete operation
-        console.log('🗑️ Eliminando ventas con IDs:', result.deletedIds);
-        
-        // Update Firebase using the specific delete function
-        deleteSalesFromFirestore(result.deletedIds).catch(err => 
-          console.error('Error deleting multiple sales from Firestore:', err)
-        );
-        
-        // Update local state
-        setSales(prevSales => prevSales.filter(sale => !result.deletedIds?.includes(sale.id)));
-        // Clear selections after successful bulk operation
-        setSelectedSales([]);
+        // Remove from cloud
+        try {
+          await deleteSalesFromFirestore(result.deletedIds);
+        } catch (err) {
+          console.error('Error deleting sales from Firestore:', err);
+        }
       } else if (result.pendingAction === 'confirm_entity_match' && result.potentialMatches) {
         // Generate response options for entity matching
         let matches: Array<{type: string, original: string, new: string}> = [];
@@ -666,10 +661,10 @@ export default function Home() {
             
             if (messageJson.sale) {
               console.log('Found sale in parsed message:', messageJson.sale);
-              setSales(prev => [messageJson.sale, ...prev]);
+              setSales(prev => validateAndCleanSalesData([messageJson.sale, ...prev]));
             } else if (messageJson.sales && Array.isArray(messageJson.sales)) {
               console.log('Found sales array in parsed message:', messageJson.sales);
-              setSales(prev => [...messageJson.sales, ...prev]);
+              setSales(prev => validateAndCleanSalesData([...messageJson.sales, ...prev]));
             }
           }
         } catch (e) {
@@ -829,64 +824,6 @@ export default function Home() {
             ))}
           </div>
           
-          {/* Selection mode toggle */}
-          <div className="flex justify-between mb-4">
-            <button
-              type="button"
-              className={`text-xs px-3 py-1.5 rounded-full transition-all duration-300 ${
-                selectionMode 
-                  ? 'bg-green-900/30 text-green-300 border border-green-700' 
-                  : 'bg-black text-green-800 border border-green-900/30 hover:border-green-800/50'
-              }`}
-              onClick={toggleSelectionMode}
-            >
-              {selectionMode ? 'Salir del modo selección' : 'Modo selección'}
-            </button>
-            
-            {selectionMode && (
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="text-xs px-3 py-1.5 rounded-full border border-green-900/30 hover:border-green-800 text-green-600 hover:text-green-500 transition-all"
-                  onClick={selectAllSales}
-                >
-                  Seleccionar todos
-                </button>
-                <button
-                  type="button"
-                  className="text-xs px-3 py-1.5 rounded-full border border-green-900/30 hover:border-green-800 text-green-600 hover:text-green-500 transition-all"
-                  onClick={clearSelections}
-                >
-                  Limpiar selección
-                </button>
-                <span className="text-xs px-3 py-1.5 text-green-700">
-                  {selectedSales.length} seleccionados
-                </span>
-              </div>
-            )}
-          </div>
-          
-          {/* Helper message for selection mode */}
-          {selectionMode && (
-            <div className="my-3 text-xs text-green-600/80 bg-green-950/10 p-2 rounded border border-green-900/20">
-              {selectedSales.length === 0 ? (
-                <p>Modo selección activo. Haga clic en las ventas para seleccionarlas, luego escriba comandos.</p>
-              ) : (
-                <>
-                  <p className="font-bold text-green-500">
-                    ✓ {selectedSales.length} {selectedSales.length === 1 ? 'venta seleccionada' : 'ventas seleccionadas'}
-                  </p>
-                  <p className="mt-1">Puedes escribir comandos como:</p>
-                  <ul className="list-disc pl-5 mt-1 space-y-1">
-                    <li>"Actualiza el monto a 5750 en las ventas seleccionadas"</li>
-                    <li>"Elimina las ventas seleccionadas"</li>
-                    <li>"Cambia el cliente a Juan en esta venta"</li>
-                  </ul>
-                </>
-              )}
-            </div>
-          )}
-          
           {/* Confirmation animation */}
           {(confirmation || clarificationQuestion) && (
             <div className="my-4 text-green-500 border-l-2 border-green-800 pl-3 pb-1">
@@ -907,13 +844,21 @@ export default function Home() {
         )}
         
         {/* Sales table */}
-        <div className="mb-8 overflow-hidden border border-green-900/30 rounded-lg shadow-lg shadow-green-900/10">
+        <div 
+          key={`sales-table-${columnOrder.join('-')}`}
+          className="mb-8 overflow-hidden border border-green-900/30 rounded-lg shadow-lg shadow-green-900/10 sales-table-container"
+        >
           {/* Table headers */}
-          <div className="sales-header grid gap-1 p-3 bg-green-950/30 border-b border-green-800/30 text-xs uppercase tracking-wider">
+          <div 
+            className="sales-header grid gap-1 p-3 bg-green-950/30 border-b border-green-800/30 text-xs uppercase tracking-wider"
+            style={{
+              gridTemplateColumns: `repeat(${columnOrder.filter(key => activeFields.includes(key)).length}, minmax(0, 1fr))`
+            }}
+          >
             {columnOrder.filter(key => activeFields.includes(key)).map(key => (
               <div 
                 key={key}
-                className={`${draggingColumn === key ? 'text-white' : 'text-green-400'} cursor-move`}
+                className={`${draggingColumn === key ? 'text-white' : 'text-green-400'} cursor-move overflow-hidden text-ellipsis whitespace-nowrap`}
                 draggable={true}
                 onDragStart={(e) => handleColumnDragStart(e, key)}
                 onDragOver={handleColumnDragOver}
@@ -930,25 +875,24 @@ export default function Home() {
               {sales.map((sale, index) => (
                 <motion.div 
                   key={sale.id}
-                  className={`grid gap-1 p-3 border-b border-green-900/20 hover:bg-green-950/10 transition-colors ${selectionMode && selectedSales.includes(sale.id) ? 'bg-green-950/30' : ''}`}
+                  className={`sales-row grid gap-1 p-3 border-b border-green-900/20 hover:bg-green-950/10 transition-colors`}
                   initial={{ opacity: 0, y: -10 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, height: 0 }}
                   transition={{ duration: 0.3 }}
-                  onClick={() => selectionMode && toggleSaleSelection(sale.id)}
                   style={{
                     gridTemplateColumns: `repeat(${columnOrder.filter(key => activeFields.includes(key)).length}, minmax(0, 1fr))`
                   }}
                 >
                   {columnOrder.filter(key => activeFields.includes(key)).map(key => (
                     <div key={`${sale.id}-${key}`} className="overflow-hidden text-ellipsis whitespace-nowrap">
-                      {key === 'product' && <span className="text-white">{sale.product}</span>}
-                      {key === 'amount' && <span className="text-green-300">{sale.amount}</span>}
-                      {key === 'price' && <span className="text-green-400">${sale.price.toFixed(2)}</span>}
-                      {key === 'totalPrice' && <span className="text-green-300">${sale.totalPrice.toFixed(2)}</span>}
+                      {key === 'product' && <span className="text-white">{sale.product || '-'}</span>}
+                      {key === 'amount' && <span className="text-green-300">{sale.amount || '-'}</span>}
+                      {key === 'price' && <span className="text-green-400">{sale.price ? `$${sale.price.toFixed(2)}` : '-'}</span>}
+                      {key === 'totalPrice' && <span className="text-green-300">{sale.totalPrice ? `$${sale.totalPrice.toFixed(2)}` : '-'}</span>}
                       {key === 'paymentMethod' && <span className="text-green-400/80">{sale.paymentMethod || 'Efectivo'}</span>}
                       {key === 'client' && <span className="text-green-400/80">{sale.client || 'Anónimo'}</span>}
-                      {key === 'date' && <span className="text-green-600 text-xs">{sale.date ? format(new Date(sale.date), 'dd/MM/yyyy') : ''}</span>}
+                      {key === 'date' && <span className="text-green-600 text-xs">{sale.date ? format(new Date(sale.date), 'dd/MM/yyyy') : '-'}</span>}
                     </div>
                   ))}
                 </motion.div>
